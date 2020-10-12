@@ -1,0 +1,145 @@
+---
+title: "Terrestrial_data_example"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+renv::restore()
+library(neonUtilities)
+library(neonstore)
+library(tidyverse)
+library(lubridate)
+library(contentid)
+```
+
+Load Flux data
+
+```{r}
+# Terrestrial
+#DP4.00200.001 & DP1.00094.001
+neon_store(product = "DP4.00200.001", n = 500) 
+flux_data <- neon_table(table = "nsae-basic")
+
+flux_data <- flux_data %>% 
+  mutate(time = as_datetime(timeBgn))
+
+```
+
+## CO2 flux data (turblent + storage flux)
+
+Requires both the turbulent and storage flux to pass the QAQC
+
+```{r}
+flux_data %>% filter(qfqm.fluxCo2.turb.qfFinl == 0 & 
+                     qfqm.fluxCo2.stor.qfFinl == 0) %>% 
+  ggplot(aes(x = time, y = data.fluxCo2.nsae.flux)) + 
+  geom_point() +
+  scale_x_datetime(date_labels = "%Y-%m") +
+  facet_wrap(~siteID)
+```
+
+## Latent flux data (turblent + storage flux)
+
+Requires both the turbulent and storage flux to pass the QAQC
+
+
+```{r}
+flux_data %>% filter(qfqm.fluxH2o.turb.qfFinl == 0 & 
+                    qfqm.fluxH2o.stor.qfFinl == 0) %>% 
+  ggplot(aes(x = time, y = data.fluxH2o.nsae.flux)) + 
+  geom_point() +
+  scale_x_datetime(date_labels = "%Y-%m") +
+  facet_wrap(~siteID)
+```
+
+# What if we only use turblent fluxes
+
+Requires only turbulent pass the QAQC
+
+```{r}
+flux_data %>% filter(qfqm.fluxCo2.turb.qfFinl == 0) %>% 
+  ggplot(aes(x = time, y = data.fluxCo2.turb.flux)) + 
+  geom_point() +
+  scale_x_datetime(date_labels = "%Y-%m") +
+  facet_wrap(~siteID)
+```
+
+
+
+## Soil moisture
+
+Load data
+
+```{r}
+neon_store(table = "SWS_30_minute", n = 500) 
+d2 <- neon_read(table = "sensor_positions") 
+sm30 <- neon_table(table = "SWS_30_minute")
+sensor_positions <- neon_table(table = "sensor_positions")
+```
+
+Clean up sensor positions
+
+```{r}
+sensor_positions <- sensor_positions %>% 
+  mutate(horizontalPosition = str_sub(sensor_positions$HOR.VER, 1, 3),
+         verticalPosition = str_sub(HOR.VER, 5, 7),
+         siteID = str_sub(file, 10, 13)) %>% 
+  rename(sensorDepths = zOffset) %>% 
+  filter(siteID %in% c("KONZ", "BART", "OSBS", "SRER")) %>% 
+  select(sensorDepths, horizontalPosition, verticalPosition, siteID)
+
+sm30 <- left_join(sm30, sensor_positions, by = c("siteID", "verticalPosition", "horizontalPosition"))
+```
+  
+Clean soil moisture with QC flag
+
+```{r}
+sm30 <- sm30 %>% 
+  select(startDateTime, endDateTime, VSWCMean, siteID, horizontalPosition, verticalPosition, VSWCFinalQF, sensorDepths) %>% 
+  mutate(VSWCMean = as.numeric(VSWCMean)) %>% 
+  filter(VSWCFinalQF == 0)
+```
+
+### BART
+
+Panels are depth
+
+```{r}
+sm30 %>% filter(siteID == "BART" & horizontalPosition == "001") %>% 
+  ggplot(aes(x = startDateTime, y = VSWCMean)) +
+  geom_point() +
+  facet_wrap(~sensorDepths)
+```
+
+### KONZ
+
+```{r}
+sm30 %>% filter(siteID == "KONZ" & horizontalPosition == "001") %>% 
+  ggplot(aes(x = startDateTime, y = VSWCMean)) +
+  geom_point()+
+  facet_wrap(~factor(sensorDepths))
+```
+
+### OSBS
+
+```{r}
+sm30 %>% filter(siteID == "OSBS" & horizontalPosition == "001") %>% 
+  ggplot(aes(x = startDateTime, y = VSWCMean)) +
+  geom_point()+
+  facet_wrap(~factor(sensorDepths))
+```
+
+### SRER
+
+```{r}
+sm30 %>% filter(siteID == "SRER" & horizontalPosition == "001") %>% 
+  ggplot(aes(x = startDateTime, y = VSWCMean)) +
+  geom_point()+
+  facet_wrap(~factor(sensorDepths))
+```
