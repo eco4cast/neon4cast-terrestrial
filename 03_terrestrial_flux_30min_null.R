@@ -1,11 +1,15 @@
+print(paste0("Running Creating 30-minute Terrestrial Forecasts at ", Sys.time()))
+
+renv::restore()
+
+
 library(tidyverse)
 library(lubridate)
 library(rjags)
 library(tidybayes)
 library(modelr)
-library(nimble)
-library(coda)
-
+library(aws.s3)
+library(prov)
 set.seed(329)
 
 download.file("https://data.ecoforecast.org/targets/terrestrial_fluxes/terrestrial-30min-targets.csv.gz",
@@ -251,15 +255,11 @@ forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>%
   rename(le = `forecast_saved_le$le`) %>% 
   select(time, siteID, ensemble, nee, le,data_assimilation, forecast_iteration_id, forecast_project_id)
 
-forecast_saved %>% 
-  select(time, nee, )
-
-
 forecast_file_name <- paste0("terrestrial-EFInull30min-",as_date(start_forecast),".csv.gz")
 write_csv(forecast_saved, forecast_file_name)
 
-source("../EFI_terrestrial/R/publish.R")
-publish(code = "03_terrestrial_flux_daily_null",
+source("R/publish.R")
+publish(code = "03_terrestrial_flux_30min_null.R",
         data_in = "terrestrial-daily-targets.csv.gz",
         data_out = forecast_file_name,
         prefix = "terrestrial_fluxes/",

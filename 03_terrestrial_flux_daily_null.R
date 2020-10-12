@@ -1,10 +1,15 @@
+print(paste0("Running Creating Daily Terrestrial Forecasts at ", Sys.time()))
+
+renv::restore()
+
+
 library(tidyverse)
 library(lubridate)
 library(rjags)
 library(tidybayes)
 library(modelr)
-library(nimble)
-library(coda)
+library(aws.s3)
+library(prov)
 
 set.seed(329)
 
@@ -104,7 +109,7 @@ for(s in 1:length(site_names)){
     select(time, x_obs, ensemble)
   
   obs <- tibble(time = full_time$time,
-                obs = y)
+                obs = y_wgaps)
   
   model_output %>% 
     group_by(time) %>% 
@@ -208,7 +213,7 @@ for(s in 1:length(site_names)){
     select(time, x_obs, ensemble)
   
   obs <- tibble(time = full_time$time,
-                obs = y)
+                obs = y_wgaps)
   
   model_output %>% 
     group_by(time) %>% 
@@ -253,8 +258,8 @@ write_csv(forecast_saved, forecast_file_name)
 
 ## Publish the forecast automatically. (EFI-only)
 
-source("../EFI_terrestrial/R/publish.R")
-publish(code = "03_terrestrial_flux_daily_null",
+source("R/publish.R")
+publish(code = "03_terrestrial_flux_daily_null.R",
         data_in = "terrestrial-daily-targets.csv.gz",
         data_out = forecast_file_name,
         prefix = "terrestrial_fluxes/",
