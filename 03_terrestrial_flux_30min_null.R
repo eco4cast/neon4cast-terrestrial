@@ -260,7 +260,7 @@ write_csv(forecast_saved, forecast_file_name)
 
 source("R/publish.R")
 publish(code = "03_terrestrial_flux_30min_null.R",
-        data_in = "terrestrial-daily-targets.csv.gz",
+        data_in = "terrestrial-30min-targets.csv.gz",
         data_out = forecast_file_name,
         prefix = "terrestrial_fluxes/",
         bucket = "forecasts")
