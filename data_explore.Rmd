@@ -31,7 +31,19 @@ flux_data <- flux_data %>%
 
 ```
 
-## CO2 flux data (turblent + storage flux)
+## CO2 flux data 
+
+### (turblent + storage flux): ALL data
+
+```{r}
+flux_data %>%
+  ggplot(aes(x = time, y = data.fluxCo2.nsae.flux)) + 
+  geom_point() +
+  scale_x_datetime(date_labels = "%Y-%m") +
+  facet_wrap(~siteID)
+```
+
+### (turblent + storage flux): Pass QAQC
 
 Requires both the turbulent and storage flux to pass the QAQC
 
@@ -44,32 +56,55 @@ flux_data %>% filter(qfqm.fluxCo2.turb.qfFinl == 0 &
   facet_wrap(~siteID)
 ```
 
-## Latent flux data (turblent + storage flux)
+### use only turblent fluxes: Pass QAQC
 
-Requires both the turbulent and storage flux to pass the QAQC
-
+Requires only turbulent pass the QAQC
 
 ```{r}
-flux_data %>% filter(qfqm.fluxH2o.turb.qfFinl == 0 & 
-                    qfqm.fluxH2o.stor.qfFinl == 0) %>% 
+flux_data %>% filter(qfqm.fluxH2o.turb.qfFinl == 0) %>% 
+  ggplot(aes(x = time, y = data.fluxH2o.turb.flux)) + 
+  geom_point() +
+  scale_x_datetime(date_labels = "%Y-%m") +
+  facet_wrap(~siteID)
+```
+
+
+## Latent heat flux data 
+
+### (turblent + storage flux): ALL data
+
+```{r}
+flux_data %>%
   ggplot(aes(x = time, y = data.fluxH2o.nsae.flux)) + 
   geom_point() +
   scale_x_datetime(date_labels = "%Y-%m") +
   facet_wrap(~siteID)
 ```
 
-# What if we only use turblent fluxes
+### (turblent + storage flux): Pass QAQC
 
-Requires only turbulent pass the QAQC
+Requires both the turbulent and storage flux to pass the QAQC
 
 ```{r}
-flux_data %>% filter(qfqm.fluxCo2.turb.qfFinl == 0) %>% 
-  ggplot(aes(x = time, y = data.fluxCo2.turb.flux)) + 
+flux_data %>% filter(qfqm.fluxH2o.turb.qfFinl == 0 & 
+                     qfqm.fluxH2o.stor.qfFinl == 0) %>% 
+  ggplot(aes(x = time, y = data.fluxH2o.nsae.flux)) + 
   geom_point() +
   scale_x_datetime(date_labels = "%Y-%m") +
   facet_wrap(~siteID)
 ```
 
+### Only use turblent fluxes: Pass QAQC
+
+Requires only turbulent pass the QAQC
+
+```{r}
+flux_data %>% filter(qfqm.fluxH2o.turb.qfFinl == 0) %>% 
+  ggplot(aes(x = time, y = data.fluxH2o.turb.flux)) + 
+  geom_point() +
+  scale_x_datetime(date_labels = "%Y-%m") +
+  facet_wrap(~siteID)
+```
 
 
 ## Soil moisture
@@ -80,6 +115,7 @@ Load data
 neon_store(table = "SWS_30_minute", n = 500) 
 d2 <- neon_read(table = "sensor_positions") 
 sm30 <- neon_table(table = "SWS_30_minute")
+neon_store(table = "sensor_positions", n = 500) 
 sensor_positions <- neon_table(table = "sensor_positions")
 ```
 

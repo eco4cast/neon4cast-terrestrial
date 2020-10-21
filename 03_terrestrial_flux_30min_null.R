@@ -10,6 +10,7 @@ library(tidybayes)
 library(modelr)
 library(aws.s3)
 library(prov)
+library(EFIstandards)
 set.seed(329)
 
 download.file("https://data.ecoforecast.org/targets/terrestrial_fluxes/terrestrial-30min-targets.csv.gz",

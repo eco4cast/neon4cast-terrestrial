@@ -10,8 +10,19 @@ library(tidybayes)
 library(modelr)
 library(aws.s3)
 library(prov)
+library(EFIstandards)
+library(EML)
 
 set.seed(329)
+
+team_list <- list(individualName = list(givenName = "Quinn", 
+                                 surName = "Thomas"),
+           electronicMailAddress = "rqthomas@vt.edu",
+           id = "https://orcid.org/0000-0003-1282-7825")
+
+team_name <- "pers_null_daily"
+
+
 
 download.file("https://data.ecoforecast.org/targets/terrestrial_fluxes/terrestrial-daily-targets.csv.gz",
               "terrestrial-daily-targets.csv.gz")
@@ -28,7 +39,6 @@ model{
   tau_add ~ dgamma(0.1,0.1)
   tau_obs ~ dgamma(0.1,0.1)
 
-
   #### Process Model
   for(t in 2:n){
     x[t]~dnorm(x[t-1],tau_add)
@@ -42,6 +52,7 @@ model{
 
 }
 "
+
 for(s in 1:length(site_names)){
   
   site_data_var <- terrestrial_targets %>%
@@ -98,8 +109,6 @@ for(s in 1:length(site_names)){
                       n.iter = 10000,
                       thin = 5)
   
-  
-  
   model_output <- m %>%
     spread_draws(x_obs[day]) %>%
     filter(.chain == 1) %>%
@@ -127,6 +136,8 @@ for(s in 1:length(site_names)){
       filter(time > start_forecast) %>%
       rename(nee = x_obs) %>% 
       mutate(data_assimilation = 0,
+             forecast = 1,
+             obs_flag = 2,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
       mutate(forecast_project_id = "EFInull")
@@ -136,6 +147,8 @@ for(s in 1:length(site_names)){
       filter(time > start_forecast) %>%
       rename(nee = x_obs) %>% 
       mutate(data_assimilation = 0,
+             forecast = 1,
+             obs_flag = 2,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
       mutate(forecast_project_id = "EFInull")
@@ -202,15 +215,13 @@ for(s in 1:length(site_names)){
                       n.iter = 10000,
                       thin = 5)
   
-  
-  
   model_output <- m %>%
     spread_draws(x_obs[day]) %>%
     filter(.chain == 1) %>%
     rename(ensemble = .iteration) %>%
     mutate(time = full_time$time[day]) %>%
     ungroup() %>%
-    select(time, x_obs, ensemble)
+    select(time, x_obs, x, ensemble)
   
   obs <- tibble(time = full_time$time,
                 obs = y_wgaps)
@@ -231,6 +242,8 @@ for(s in 1:length(site_names)){
       filter(time > start_forecast) %>%
       rename(le = x_obs) %>% 
       mutate(data_assimilation = 0,
+             forecast = 1,
+             obs_flag = 2,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
       mutate(forecast_project_id = "EFInull")
@@ -240,6 +253,8 @@ for(s in 1:length(site_names)){
       filter(time > start_forecast) %>%
       rename(le = x_obs) %>% 
       mutate(data_assimilation = 0,
+             forecast = 1,
+             obs_flag = 2,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
       mutate(forecast_project_id = "EFInull")
@@ -248,13 +263,136 @@ for(s in 1:length(site_names)){
   }
 }
 
+
 forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>% 
   rename(le = `forecast_saved_le$le`) %>% 
   select(time, siteID, ensemble, nee, le,data_assimilation, forecast_iteration_id, forecast_project_id)
 
 
-forecast_file_name <- paste0("terrestrial-EFInulldaily-",as_date(start_forecast),".csv.gz")
-write_csv(forecast_saved, forecast_file_name)
+curr_time <- with_tz(Sys.time(), "UTC")
+forecast_issue_time <- format(curr_time,format = "%Y-%m-%d %H:%M:%SZ", usetz = F)
+forecast_issue_time <- as_date(curr_time)
+forecast_iteration_id <- start_forecast
+forecast_model_id <- team_name
+forecast_project_id <- "efi_null"
+
+forecast_file_name_base <- paste0("terrestrial-",as_date(start_forecast),"-",forecast_model_id,".csv.gz")
+write_csv(forecast_saved, paste0(forecast_file_name_base, ",csv.gz"))
+
+# Define metadata
+
+## define variable names, units, etc
+## in practice, this might be kept in a spreadsheet
+attributes <- tibble::tribble(
+  ~attributeName,     ~attributeDefinition,                          ~unit,                  ~formatString,  ~definition, ~numberType,
+  "time",              "[dimension]{time}",                          "year",                 "YYYY-MM-DD",   NA,          "datetime",
+  "ensemble",          "[dimension]{index of ensemble member}",      "dimensionless",         NA,            NA,          "integer",
+  "siteID",             "[dimension]{neon site}",                     NA,                     NA,           "NEON site ID",  "character",
+  "obs_flag",          "[flag]{observation error}",                  "dimensionless",         NA,           NA,           "integer",
+  "nee",               "[variable]{net ecosystem exchange}",         "numberPerMeterSquared", NA,           NA,           "real",
+  "le",                "[variable]{latent heat}",                    "numberPerMeterSquared", NA,           NA,          "real",
+  "forecast",          "[flag]{whether represents forecast}",        "dimensionless",         NA,           NA,          "integer",
+  "data_assimilation", "[flag]{whether time step assimilated data}", "dimensionless",         NA,           NA,          "integer"
+) 
+
+
+## note: EML uses a different unit standard than UDUNITS. For now use EML. EFI needs to provide a custom unitList.
+attributes
+attrList <- EML::set_attributes(attributes, 
+                           col_classes = c("Date", "numeric", "character","numeric", 
+                                           "numeric","numeric", "numeric","numeric"))
+
+physical <- set_physical(forecast_file_name)
+
+dataTable <- eml$dataTable(
+  entityName = "forecast",  ## this is a standard name to allow us to distinguish this entity from 
+  entityDescription = "Forecast of NEE and LE for four NEON sites",
+  physical = physical,
+  attributeList = attrList)
+
+meta <- neonstore::neon_index(ext="xml", product = "DP4.00200.001")
+all <- lapply(meta$path, emld::as_emld)
+geo <- lapply(all, function(x) x$dataset$coverage$geographicCoverage)
+sites_ids <- lapply(geo, function(x) x$id) %>% unlist() 
+  
+first_name <- rep(NA, length(site_names))
+for(i in 1:length(site_names)){
+  first_name[i] <- min(which(sites_ids == site_names[i]))
+  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum), 4)
+  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum), 4)
+}
+
+temporalCoverage <- list(rangeOfDates =
+         list(beginDate = list(calendarDate = min(forecast_saved$time)),
+              endDate = list(calendarDate = max(forecast_saved$time))))
+
+coverage <- list(geographicCoverage = geo[first_name],
+                 temporalCoverage = temporalCoverage)
+               
+dataset = eml$dataset(
+  title = "Daily persistence null forecast for nee and lee",
+  creator = team_list,
+  contact = list(references=team_list$id),
+  pubDate = as_date(forecast_issue_time),
+  intellectualRights = "https://creativecommons.org/licenses/by/4.0/",
+  dataTable = dataTable,
+  coverage = coverage
+)
+
+#Minimal metdata
+additionalMetadata <- eml$additionalMetadata(
+  metadata = list(
+    forecast = list(
+      ## Basic elements
+      timestep = "1 day", ## should be udunits parsable; already in coverage -> temporalCoverage?
+      forecast_horizon = "35 days",
+      forecast_issue_time = forecast_issue_time,
+      forecast_iteration_id = forecast_iteration_id,
+      forecast_project_id = forecast_project_id,
+      metadata_standard_version = "0.3",
+      model_description = list(
+        forecast_model_id = forecast_model_id,
+        name = "state-space Bayesian null",
+        type = "empirical",
+        repository = "https://github.com/eco4cast/neon4cast-terrestrial"
+      ),
+      ## MODEL STRUCTURE & UNCERTAINTY CLASSES
+      initial_conditions = list(
+        # Possible values: absent, present, data_driven, propagates, assimilates
+        status = "assimilates"
+      ),
+      drivers = list(
+        status = "absent"
+      ),
+      parameters = list(
+        status = "assimilates"
+      ),
+      random_effects = list(
+        status = "absent"
+      ),
+      process_error = list(
+        status = "assimilates"),
+      obs_error = list(
+        status = "present")
+    ) # forecast
+  ) # metadata
+) # eml$additionalMetadata
+
+
+my_eml <- eml$eml(dataset = dataset,
+                  additionalMetadata = additionalMetadata,
+                  packageId = forecast_iteration_id , 
+                  system = "datetime"  ## system used to generate packageId
+)
+
+## check base EML
+EML::eml_validate(my_eml)
+
+EFIstandards::forecast_validator(my_eml)
+
+meta_data_filename <-  paste0(forecast_file_name_base,".xml")
+
+write_eml(my_eml, meta_data_filename)
 
 ## Publish the forecast automatically. (EFI-only)
 
@@ -262,5 +400,6 @@ source("R/publish.R")
 publish(code = "03_terrestrial_flux_daily_null.R",
         data_in = "terrestrial-daily-targets.csv.gz",
         data_out = forecast_file_name,
+        meta = meta_data_filename,
         prefix = "terrestrial_fluxes/",
         bucket = "forecasts")
