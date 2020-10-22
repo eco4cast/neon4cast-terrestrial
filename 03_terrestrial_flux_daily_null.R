@@ -214,7 +214,7 @@ for(s in 1:length(site_names)){
     rename(ensemble = .iteration) %>%
     mutate(time = full_time$time[day]) %>%
     ungroup() %>%
-    select(time, x_obs, x, ensemble)
+    select(time, x_obs, ensemble)
   
   obs <- tibble(time = full_time$time,
                 obs = y_wgaps)
@@ -280,7 +280,7 @@ attrList <- EML::set_attributes(attributes,
                                 col_classes = c("Date", "numeric", "character","numeric", 
                                                 "numeric","numeric", "numeric","numeric"))
 
-physical <- set_physical(forecast_file_name)
+physical <- set_physical(forecast_file)
 
 dataTable <- eml$dataTable(
   entityName = "forecast",  ## this is a standard name to allow us to distinguish this entity from 
