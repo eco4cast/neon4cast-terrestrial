@@ -201,7 +201,7 @@ for(s in 1:length(site_names)){
   
   start_forecast <- max_time
   # This is key here - I added 16 days on the end of the data for the forecast period
-  full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "1 day"))
+  full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var)
   
