@@ -16,8 +16,15 @@ library(jsonlite)
 set.seed(329)
 
 team_list <- list(list(individualName = list(givenName = "Quinn", surName = "Thomas"), 
-                     id = "https://orcid.org/0000-0003-1282-7825"),
-                list(individualName = list(givenName = "Robert",  surName ="Quinn"))
+                       id = "https://orcid.org/0000-0003-1282-7825"),
+                  list(individualName = list(givenName = "Alex",  surName ="Young")),
+                  list(individualName = list(givenName = "George",  surName ="Burba")),
+                  list(individualName = list(givenName = "Jamie",  surName ="Cleverly")),
+                  list(individualName = list(givenName = "Ankur",  surName ="Desai")),
+                  list(individualName = list(givenName = "Mike",  surName ="Dietze")),
+                  list(individualName = list(givenName = "Andy",  surName ="Fox")),
+                  list(individualName = list(givenName = "William",  surName ="Hammond")),
+                  list(individualName = list(givenName = "Danica",  surName ="Lombardozzi"))
 )
 
 team_name <- "pers_null_daily"
