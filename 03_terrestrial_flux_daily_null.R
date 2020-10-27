@@ -1,15 +1,15 @@
-#'#Ecological Forecasting Initiative Null Model
+#'# Ecological Forecasting Initiative Null Model 
 
-##'#Set-up
+#'## Set-up
 
 print(paste0("Running Creating Daily Terrestrial Forecasts at ", Sys.time()))
 
-#' Load renv.lock file that includes the versions of all the packages used
-#' You can generate using the command renv::snapshot()
+#'Load renv.lock file that includes the versions of all the packages used
+#'You can generate using the command renv::snapshot()
 renv::restore()
 
 #' Required packages.  
-#' EFIstandards is at remotes::install_github("eco4cast/EFIstandards)
+#' EFIstandards is at remotes::install_github("eco4cast/EFIstandards")
 library(tidyverse)
 library(lubridate)
 library(rjags)
@@ -86,9 +86,10 @@ model{
 #'Create variable for combined forecasts across sites
 forecast_saved_nee <- NULL
 nee_figures <- list()
+#+ message = FALSE
 #' Loop through sites
 for(s in 1:length(site_names)){
-
+  
   # Select site
   site_data_var <- terrestrial_targets %>%
     filter(siteID == site_names[s])
@@ -160,44 +161,44 @@ for(s in 1:length(site_names)){
     select(time, x_obs, ensemble)
   
   if(generate_plots){
-  #Pull in the observed data for plotting
-  obs <- tibble(time = full_time$time,
-                obs = y_wgaps)
-  
-  
-  #Post past and future
-  nee_full_figures[i] <- model_output %>% 
-    group_by(time) %>% 
-    summarise(mean = mean(x_obs),
-              upper = quantile(x_obs, 0.975),
-              lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
-    ggplot(aes(x = time, y = mean)) +
-    geom_line() +
-    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
-    geom_point(data = obs, aes(x = time, y = obs), color = "red") +
-    labs(x = "Date", y = "nee")
+    #Pull in the observed data for plotting
+    obs <- tibble(time = full_time$time,
+                  obs = y_wgaps)
+    
+    
+    #Post past and future
+    nee_full_figures[i] <- model_output %>% 
+      group_by(time) %>% 
+      summarise(mean = mean(x_obs),
+                upper = quantile(x_obs, 0.975),
+                lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
+      ggplot(aes(x = time, y = mean)) +
+      geom_line() +
+      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
+      geom_point(data = obs, aes(x = time, y = obs), color = "red") +
+      labs(x = "Date", y = "nee")
   }
-
+  
   #Filter only the forecasted dates and add columns for required variable
   forecast_saved_tmp <- model_output %>%
-      filter(time > start_forecast) %>%
-      rename(nee = x_obs) %>% 
-      mutate(data_assimilation = 0,
-             forecast = 1,
-             obs_flag = 2,
-             siteID = site_names[s]) %>%
-      mutate(forecast_iteration_id = start_forecast) %>%
-      mutate(forecast_project_id = team_name)
-    
+    filter(time > start_forecast) %>%
+    rename(nee = x_obs) %>% 
+    mutate(data_assimilation = 0,
+           forecast = 1,
+           obs_flag = 2,
+           siteID = site_names[s]) %>%
+    mutate(forecast_iteration_id = start_forecast) %>%
+    mutate(forecast_project_id = team_name)
+  
   # Combined with the previous sites
   forecast_saved_nee <- rbind(forecast_saved_nee, forecast_saved_tmp)
-
+  
 }
 
 #'## Latent heat model
 #' 
 #' See notes from the NEE section above
-
+#+ message = FALSE
 forecast_saved_le <- NULL
 le_figures <- list()
 for(s in 1:length(site_names)){
@@ -214,11 +215,11 @@ for(s in 1:length(site_names)){
   
   y_wgaps <- site_data_var$le
   time <- c(site_data_var$time)
-
+  
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
-
+  
   y_wgaps_index <- 1:length(y_wgaps)
-
+  
   y_wgaps_index <- y_wgaps_index[!is.na(y_wgaps)]
   
   init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
@@ -261,32 +262,32 @@ for(s in 1:length(site_names)){
     select(time, x_obs, ensemble)
   
   if(generate_plots){
-  obs <- tibble(time = full_time$time,
-                obs = y_wgaps)
-  
-  le_figures[i] <- model_output %>% 
-    group_by(time) %>% 
-    summarise(mean = mean(x_obs),
-              upper = quantile(x_obs, 0.975),
-              lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
-    ggplot(aes(x = time, y = mean)) +
-    geom_line() +
-    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
-    geom_point(data = obs, aes(x = time, y = obs), color = "red") +
-    labs(x = "Date", y = "le")
+    obs <- tibble(time = full_time$time,
+                  obs = y_wgaps)
+    
+    le_figures[i] <- model_output %>% 
+      group_by(time) %>% 
+      summarise(mean = mean(x_obs),
+                upper = quantile(x_obs, 0.975),
+                lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
+      ggplot(aes(x = time, y = mean)) +
+      geom_line() +
+      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
+      geom_point(data = obs, aes(x = time, y = obs), color = "red") +
+      labs(x = "Date", y = "le")
   }
   
-    forecast_saved_tmp <- model_output %>%
-      filter(time > start_forecast) %>%
-      rename(le = x_obs) %>% 
-      mutate(data_assimilation = 0,
-             forecast = 1,
-             obs_flag = 2,
-             siteID = site_names[s]) %>%
-      mutate(forecast_iteration_id = start_forecast) %>%
-      mutate(forecast_project_id = team_name)
-    
-    forecast_saved_le <- rbind(forecast_saved_le, forecast_saved_tmp)
+  forecast_saved_tmp <- model_output %>%
+    filter(time > start_forecast) %>%
+    rename(le = x_obs) %>% 
+    mutate(data_assimilation = 0,
+           forecast = 1,
+           obs_flag = 2,
+           siteID = site_names[s]) %>%
+    mutate(forecast_iteration_id = start_forecast) %>%
+    mutate(forecast_project_id = team_name)
+  
+  forecast_saved_le <- rbind(forecast_saved_le, forecast_saved_tmp)
 }
 
 #'Combined the NEE and LE forecasts together and re-order column
@@ -343,18 +344,20 @@ dataTable <- eml$dataTable(
 #'It uses the `neonstore` package. The for-loop extracts only one set of 
 #'geographicCoverage for each site.  We have already extracted and saved as a
 #'JSON file.
-#'`meta <- neonstore::neon_index(ext="xml", product = "DP4.00200.001")`
-#'`all <- lapply(meta$path, emld::as_emld)`
-#'`geo <- lapply(all, function(x) x$dataset$coverage$geographicCoverage)`
-#'`sites_ids <- lapply(geo, function(x) x$id) %>% unlist()`
+#'
+#+ eval=FALSE
+meta <- neonstore::neon_index(ext="xml", product = "DP4.00200.001")
+all <- lapply(meta$path, emld::as_emld)
+geo <- lapply(all, function(x) x$dataset$coverage$geographicCoverage)
+sites_ids <- lapply(geo, function(x) x$id) %>% unlist()
 
-#'`first_name <- rep(NA, length(site_names))`
-#'`for(i in 1:length(site_names)){`
-#'  `first_name[i] <- min(which(sites_ids == site_names[i]))`
-#'  `geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum), 4)`
-#' `geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum), 4)`
-#'`}`
-#'`geo[first_name] %>% toJSON() %>% fromJSON() %>% distinct() %>% write_json("meta/terrestrial_geo.json", auto_unbox=TRUE)`
+first_name <- rep(NA, length(site_names))
+for(i in 1:length(site_names)){
+  first_name[i] <- min(which(sites_ids == site_names[i]))
+  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum), 4)
+  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum), 4)
+}
+geo[first_name] %>% toJSON() %>% fromJSON() %>% distinct() %>% write_json("meta/terrestrial_geo.json", auto_unbox=TRUE)
 
 #'Read JSON file
 geographicCoverage = jsonlite::read_json("meta/terrestrial_geo.json")
@@ -389,7 +392,7 @@ additionalMetadata <- eml$additionalMetadata(
       forecast_horizon = "35 days",
       forecast_issue_time = forecast_issue_time,
       forecast_iteration_id = forecast_iteration_id,
-      forecast_project_id = forecast_project_id,
+      forecast_project_id = team_name,
       metadata_standard_version = "0.3",
       model_description = list(
         forecast_model_id = forecast_model_id,
@@ -466,11 +469,11 @@ write_eml(my_eml, meta_data_filename)
 
 #'Publish the forecast automatically.  Run only on EFI Challenge server
 if(efi_server){
-source("../neon4cast-shared-utilities/publish.R")
-publish(code = "03_terrestrial_flux_daily_null.R",
-        data_in = "terrestrial-daily-targets.csv.gz",
-        data_out = forecast_file,
-        meta = meta_data_filename,
-        prefix = "terrestrial/",
-        bucket = "forecasts")
+  source("../neon4cast-shared-utilities/publish.R")
+  publish(code = "03_terrestrial_flux_daily_null.R",
+          data_in = "terrestrial-daily-targets.csv.gz",
+          data_out = forecast_file,
+          meta = meta_data_filename,
+          prefix = "terrestrial/",
+          bucket = "forecasts")
 }
