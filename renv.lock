@@ -282,10 +282,10 @@
     },
     "digest": {
       "Package": "digest",
-      "Version": "0.6.26",
+      "Version": "0.6.27",
       "Source": "Repository",
       "Repository": "RSPM",
-      "Hash": "312b822306ececbbf7b9731937d9ec55"
+      "Hash": "a0cbe758a531d054b537d16dff4d58a1"
     },
     "distributional": {
       "Package": "distributional",
@@ -576,15 +576,15 @@
     },
     "neonstore": {
       "Package": "neonstore",
-      "Version": "0.3.1",
+      "Version": "0.3.3",
       "Source": "GitHub",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
       "RemoteRepo": "neonstore",
       "RemoteUsername": "cboettig",
       "RemoteRef": "HEAD",
-      "RemoteSha": "a72e3b4022f2da6e9626e1e48339aa76f2b53cfd",
-      "Hash": "2d1eab1195da58afd181dff20af01541"
+      "RemoteSha": "cd730f469e51054e02584e15fbb420ff649f7753",
+      "Hash": "274a2b54a28ac0e08d0908c3232a2777"
     },
     "nlme": {
       "Package": "nlme",

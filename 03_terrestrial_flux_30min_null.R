@@ -78,9 +78,9 @@ for(s in 1:length(site_names)){
   site_data_var <- terrestrial_targets %>%
     filter(siteID == site_names[s])
   
-  unc <- flux.uncertainty(measurement = site_data_var$nee, 
-                          QC = rep(0, length(site_data_var$nee)),
-                          bin.num = 20)
+  #unc <- flux.uncertainty(measurement = site_data_var$nee, 
+  #                        QC = rep(0, length(site_data_var$nee)),
+  #                        bin.num = 20)
   
   max_time <- max(site_data_var$time) + days(1)
   
@@ -92,7 +92,11 @@ for(s in 1:length(site_names)){
   
   site_data_var <- left_join(full_time, site_data_var)
   
+  
+  
   # NEE
+  
+
   
   #Full time series with gaps
   y_wgaps <- site_data_var$nee
@@ -111,9 +115,9 @@ for(s in 1:length(site_names)){
                nobs = length(y_wgaps_index),
                n = length(y_wgaps),
                x_ic = rep(0.0, 12),
-               obs_intercept = unc$intercept,
-               obs_slopeP = unc$slopeP,
-               obs_slopeN = unc$slopeN
+               obs_intercept = site_data_var$nee_sd_intercept[1],
+               obs_slopeP = site_data_var$nee_sd_slopeP[1],
+               obs_slopeN = site_data_var$nee_sd_slopeN[1]
                )
   
   nchain = 3
@@ -223,7 +227,10 @@ for(s in 1:length(site_names)){
                y_wgaps_index = y_wgaps_index,
                nobs = length(y_wgaps_index),
                n = length(y_wgaps),
-               x_ic = rep(0.0, 12))
+               x_ic = rep(0.0, 12),
+               obs_intercept = site_data_var$le_sd_intercept,
+               obs_slopeP = le_sd_slopeP,
+               obs_slopeN = le_sd_slopeN)
   
   nchain = 3
   chain_seeds <- c(200,800,1400)
