@@ -6,6 +6,8 @@ pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
 source(pecan_flux_uncertainty)
 
+remotes::install_github("cboettig/neonstore")
+
 
 library(neonUtilities)
 library(neonstore)

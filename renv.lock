@@ -583,8 +583,8 @@
       "RemoteRepo": "neonstore",
       "RemoteUsername": "cboettig",
       "RemoteRef": "HEAD",
-      "RemoteSha": "cd730f469e51054e02584e15fbb420ff649f7753",
-      "Hash": "274a2b54a28ac0e08d0908c3232a2777"
+      "RemoteSha": "888d9d19a49bf96432cb650c5a62288a85f9a4ba",
+      "Hash": "9980e034e057047bfe81807f4ed61040"
     },
     "nlme": {
       "Package": "nlme",
@@ -737,6 +737,13 @@
       "Source": "Repository",
       "Repository": "RSPM",
       "Hash": "76c9e04c712a05848ae7a23d2f170a40"
+    },
+    "remotes": {
+      "Package": "remotes",
+      "Version": "2.2.0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Hash": "430a0908aee75b1fcba0e62857cab0ce"
     },
     "renv": {
       "Package": "renv",
