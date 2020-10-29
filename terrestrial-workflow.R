@@ -32,6 +32,6 @@ if(!is.null(new_data1) | !is.null(new_data2) | run_full_workflow){
     
     print(paste0("Running daily Null at ", Sys.time()))
     source("03_terrestrial_flux_daily_null.R")
-    
+    print(paste0("Completed daily Null at ", Sys.time()))
   }
 }
