@@ -90,16 +90,15 @@ for(s in 1:length(site_names)){
   # This is key here - I added 16 days on the end of the data for the forecast period
   full_time <- tibble(time = seq(site_data_var$time[min_time], max(site_data_var$time) + days(35), by = "30 min"))
   
-  site_data_var <- left_join(full_time, site_data_var)
+  site_data_var <- left_join(full_time, site_data_var) %>% 
+    filter(year(time) > 2020)
   
   
   
   # NEE
   
-
-  
   #Full time series with gaps
-  y_wgaps <- site_data_var$nee
+  y_wgaps <- site_data_var$time
   time <- c(site_data_var$time)
   #Remove gaps
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
@@ -207,12 +206,121 @@ for(s in 1:length(site_names)){
   # This is key here - I added 16 days on the end of the data for the forecast period
   full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "30 min"))
   
-  site_data_var <- left_join(full_time, site_data_var)
+  site_data_var <- left_join(full_time, site_data_var) %>% 
+    filter(year(time) > 2020)
   
   # NEE
   
   #Full time series with gaps
   y_wgaps <- site_data_var$le
+  time <- c(site_data_var$time)
+  #Remove gaps
+  y_nogaps <- y_wgaps[!is.na(y_wgaps)]
+  #Indexes of full time series with gaps
+  y_wgaps_index <- 1:length(y_wgaps)
+  #keep indexes to reference the gappy time series
+  y_wgaps_index <- y_wgaps_index[!is.na(y_wgaps)]
+  
+  init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
+  
+  data <- list(y = y_nogaps,
+               y_wgaps_index = y_wgaps_index,
+               nobs = length(y_wgaps_index),
+               n = length(y_wgaps),
+               x_ic = rep(0.0, 12),
+               obs_intercept = site_data_var$le_sd_intercept,
+               obs_slopeP = le_sd_slopeP,
+               obs_slopeN = le_sd_slopeN)
+  
+  nchain = 3
+  chain_seeds <- c(200,800,1400)
+  init <- list()
+  for(i in 1:nchain){
+    init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
+                      tau_init = 1/var(diff(y_nogaps)),
+                      .RNG.name = "base::Wichmann-Hill",
+                      .RNG.seed = chain_seeds[i],
+                      x = init_x)
+  }
+  
+  j.model   <- jags.model (file = textConnection(RandomWalk),
+                           data = data,
+                           inits = init,
+                           n.chains = 3)
+  
+  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_obs"), n.iter = 10000)
+  
+  m   <- coda.samples(model = j.model,
+                      variable.names = c("x","tau_add","tau_obs", "x_obs"),
+                      n.iter = 10000,
+                      thin = 5)
+  
+  model_output <- m %>%
+    spread_draws(x_obs[day]) %>%
+    filter(.chain == 1) %>%
+    rename(ensemble = .iteration) %>%
+    mutate(time = full_time$time[day]) %>%
+    ungroup() %>%
+    select(time, x_obs, ensemble)
+  
+  obs <- tibble(time = full_time$time,
+                obs = y_wgaps)
+  
+  le_figures[s] <- model_output %>% 
+    group_by(time) %>% 
+    summarise(mean = mean(x_obs),
+              upper = quantile(x_obs, 0.975),
+              lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
+    ggplot(aes(x = time, y = mean)) +
+    geom_line() +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
+    geom_point(data = obs, aes(x = time, y = obs), color = "red") +
+    labs(x = "Date", y = "le", title = site_names[s])
+  
+  if(s == 1){
+    forecast_saved_le <- model_output %>%
+      filter(time > start_forecast) %>%
+      rename(le = x_obs) %>% 
+      mutate(data_assimilation = 0,
+             siteID = site_names[s]) %>%
+      mutate(forecast_iteration_id = start_forecast) %>%
+      mutate(forecast_project_id = "EFInull")
+  }else{
+    
+    forecast_saved_tmp <- model_output %>%
+      filter(time > start_forecast) %>%
+      rename(le = x_obs) %>% 
+      mutate(data_assimilation = 0,
+             siteID = site_names[s]) %>%
+      mutate(forecast_iteration_id = start_forecast) %>%
+      mutate(forecast_project_id = "EFInull")
+    
+    forecast_saved_le <- rbind(forecast_saved_le, forecast_saved_tmp)
+  }
+}
+
+# Latent heat
+
+soil_moisture_figures <- list()
+
+for(s in 1:length(site_names)){
+  
+  site_data_var <- terrestrial_targets %>%
+    filter(siteID == site_names[s])
+  
+  max_time <- max(site_data_var$time) + days(1)
+  
+  start_forecast <- max_time
+  # This is key here - I added 16 days on the end of the data for the forecast period
+  full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "30 min"))
+  
+  site_data_var <- left_join(full_time, site_data_var) %>% 
+    filter(year(time) > 2020)
+  
+  # NEE
+  
+  #Full time series with gaps
+  y_wgaps <- site_data_var$
   time <- c(site_data_var$time)
   #Remove gaps
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
