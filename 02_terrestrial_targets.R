@@ -57,20 +57,28 @@ full_time <- tibble(time = rep(full_time, 4),
 flux_target1 <- left_join(full_time, co2_data, by = c("time", "siteID"))
 flux_target_30m <- left_join(flux_target1, le_data, by = c("time", "siteID"))
 
-valid_dates <- flux_target_30m %>% 
+valid_dates_nee <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
-  filter(!is.na(nee) & !is.na(le)) %>% 
+  filter(!is.na(nee)) %>% # & !is.na(le)) %>% 
   group_by(date, siteID) %>% 
   summarise(count = n()) %>% 
   filter(count >= 44)
+
+valid_dates_le <- flux_target_30m %>% 
+  mutate(date = as_date(time)) %>% 
+  filter(!is.na(le)) %>% # & !is.na(le)) %>% 
+  group_by(date, siteID) %>% 
+  summarise(count = n()) %>% 
+  filter(count >= 44)
+
 
 flux_target_daily <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
   group_by(date, siteID) %>% 
   summarize(nee = mean(nee, na.rm = TRUE),
             le = mean(le, na.rm = TRUE)) %>% 
-  mutate(nee = ifelse(date %in% valid_dates$date, nee, NA),
-         le = ifelse(date %in% valid_dates$date, le, NA)) %>% 
+  mutate(nee = ifelse(date %in% valid_dates_nee$date, nee, NA),
+         le = ifelse(date %in% valid_dates_le$date, le, NA)) %>% 
   rename(time = date) %>% 
   mutate(nee = (nee * 12 / 1000000) * (60 * 60 * 24))
 
@@ -156,7 +164,7 @@ sm3_combined %>%
   facet_wrap(~siteID)
 
 sm30_target <- sm3_combined %>% 
-  mutate(time = startDateTime) %>% 
+  mutate(time = lubridate::as_datetime(startDateTime)) %>% 
   rename(vswc = VSWCMean,
          vswc_sd = VSWCExpUncert) %>% 
   select(time, siteID, vswc, vswc_sd) 
@@ -172,12 +180,12 @@ sm_daily_target <- sm3_combined %>%
     dplyr::filter(count > 44) %>% 
     dplyr::select(time, siteID, vswc, vswc_sd)
     
-terrestrial_target_30m <- left_join(flux_target_30m, sm30_target)
+terrestrial_target_30m <- full_join(flux_target_30m, sm30_target)
 
-terrestrial_target_daily <- left_join(flux_target_daily, sm_daily_target)
+terrestrial_target_daily <- full_join(flux_target_daily, sm_daily_target)
 
-write_csv(flux_target_30m, "terrestrial-30min-targets.csv.gz")
-write_csv(flux_target_daily, "terrestrial-daily-targets.csv.gz")
+write_csv(terrestrial_target_30m, "terrestrial-30min-targets.csv.gz")
+write_csv(terrestrial_target_daily, "terrestrial-daily-targets.csv.gz")
 
 ## Publish the targets to EFI.  Assumes aws.s3 env vars are configured.
 source("../neon4cast-shared-utilities/publish.R")

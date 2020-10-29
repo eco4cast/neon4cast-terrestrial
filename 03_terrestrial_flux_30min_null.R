@@ -91,14 +91,14 @@ for(s in 1:length(site_names)){
   full_time <- tibble(time = seq(site_data_var$time[min_time], max(site_data_var$time) + days(35), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
-    filter(year(time) > 2020)
+    filter(time >= max_time - months(3))
   
   
   
   # NEE
   
   #Full time series with gaps
-  y_wgaps <- site_data_var$time
+  y_wgaps <- site_data_var$nee
   time <- c(site_data_var$time)
   #Remove gaps
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
@@ -148,12 +148,17 @@ for(s in 1:length(site_names)){
     spread_draws(x_obs[day]) %>%
     filter(.chain == 1) %>%
     rename(ensemble = .iteration) %>%
-    mutate(time = full_time$time[day]) %>%
+    mutate(time = site_data_var$time[day]) %>%
     ungroup() %>%
     select(time, x_obs, ensemble)
   
-  obs <- tibble(time = full_time$time,
+  obs <- tibble(time = site_data_var$time,
                 obs = y_wgaps)
+  
+  ggplot(obs, aes(x = time, y = obs)) + geom_point()
+  
+  rm(m)
+  gc()
   
   nee_figures[s] <- model_output %>% 
     group_by(time) %>% 
@@ -165,6 +170,8 @@ for(s in 1:length(site_names)){
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
     geom_point(data = obs, aes(x = time, y = obs), color = "red") +
     labs(x = "Date", y = "nee", title = site_names[s])
+  
+  ggsave(paste0("nee_30min_",site_names[s],"_figure.pdf"), nee_figures[s], device = "pdf")
   
     forecast_saved_tmp <- model_output %>%
       filter(time > start_forecast) %>%
@@ -187,7 +194,12 @@ for(s in 1:length(site_names)){
       labs(x = "Date", y = "nee", title = site_names[s])
     
     forecast_saved_nee <- rbind(forecast_saved_nee, forecast_saved_tmp)
+    
+    rm(forecast_saved_tmp)
+    gc()
 }
+
+
 
 # Latent heat
 
@@ -207,7 +219,7 @@ for(s in 1:length(site_names)){
   full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
-    filter(year(time) > 2020)
+    filter(time >= max_time - months(3))
   
   # NEE
   
@@ -263,6 +275,9 @@ for(s in 1:length(site_names)){
     ungroup() %>%
     select(time, x_obs, ensemble)
   
+  rm(m)
+  gc()
+  
   obs <- tibble(time = full_time$time,
                 obs = y_wgaps)
   
@@ -276,6 +291,8 @@ for(s in 1:length(site_names)){
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
     geom_point(data = obs, aes(x = time, y = obs), color = "red") +
     labs(x = "Date", y = "le", title = site_names[s])
+  
+  ggsave(paste0("le_30min_",site_names[s],"_figure.pdf"), le_figures[s], device = "pdf")
   
   if(s == 1){
     forecast_saved_le <- model_output %>%
@@ -299,7 +316,33 @@ for(s in 1:length(site_names)){
   }
 }
 
-# Latent heat
+ggsave("le_30min_figures.pdf", le_figures, device = "pdf")
+
+# Soil moisture
+
+RandomWalk = "
+model{
+
+  #### Priors
+  for(t in 1:12){
+    x[t] ~ dnorm(x_ic[t], tau_init)
+  }
+  tau_add ~ dgamma(0.1,0.1)
+  tau_init ~ dgamma(0.1,0.1)
+
+  #### Process Model
+  for(t in 13:n){
+    x[t]~dnorm(x[t-12], tau_add)
+    x_obs[t] ~ dnorm(x[t],tau_obs[t])
+  }
+
+  #### Data Model
+  for(i in 1:nobs){
+    y[i] ~ dnorm(x[y_wgaps_index[i]],  tau_obs[y_wgaps_index[i]])
+  }
+
+}
+"
 
 soil_moisture_figures <- list()
 
@@ -315,12 +358,17 @@ for(s in 1:length(site_names)){
   full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
-    filter(year(time) > 2020)
+    filter(time >= max_time - months(3))
+  
+  mean_sd <- mean(site_data_var$vswc_sd, na.rm = TRUE)
+  
+  site_data_var <- site_data_var %>% 
+    mutate(vswc_sd = ifelse(!is.na(vswc_sd), vswc_sd, mean_sd))
   
   # NEE
   
   #Full time series with gaps
-  y_wgaps <- site_data_var$
+  y_wgaps <- site_data_var$vswc
   time <- c(site_data_var$time)
   #Remove gaps
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
@@ -336,9 +384,7 @@ for(s in 1:length(site_names)){
                nobs = length(y_wgaps_index),
                n = length(y_wgaps),
                x_ic = rep(0.0, 12),
-               obs_intercept = site_data_var$le_sd_intercept,
-               obs_slopeP = le_sd_slopeP,
-               obs_slopeN = le_sd_slopeN)
+               tau_obs = 1/(site_data_var$vswc_sd^2))
   
   nchain = 3
   chain_seeds <- c(200,800,1400)
@@ -371,10 +417,13 @@ for(s in 1:length(site_names)){
     ungroup() %>%
     select(time, x_obs, ensemble)
   
+  rm(m)
+  gc()
+  
   obs <- tibble(time = full_time$time,
                 obs = y_wgaps)
   
-  le_figures[s] <- model_output %>% 
+  soil_moisture_figures[s] <- model_output %>% 
     group_by(time) %>% 
     summarise(mean = mean(x_obs),
               upper = quantile(x_obs, 0.975),
@@ -383,10 +432,12 @@ for(s in 1:length(site_names)){
     geom_line() +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
     geom_point(data = obs, aes(x = time, y = obs), color = "red") +
-    labs(x = "Date", y = "le", title = site_names[s])
+    labs(x = "Date", y = "vswc", title = site_names[s])
+  
+  ggsave(paste0("soil_moisture_30min_",site_names[s],"_figure.pdf"), soil_moisture_figures[s], device = "pdf")
   
   if(s == 1){
-    forecast_saved_le <- model_output %>%
+    forecast_saved_soil_moisture <- model_output %>%
       filter(time > start_forecast) %>%
       rename(le = x_obs) %>% 
       mutate(data_assimilation = 0,
@@ -397,19 +448,20 @@ for(s in 1:length(site_names)){
     
     forecast_saved_tmp <- model_output %>%
       filter(time > start_forecast) %>%
-      rename(le = x_obs) %>% 
+      rename(vswc = x_obs) %>% 
       mutate(data_assimilation = 0,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
       mutate(forecast_project_id = "EFInull")
     
-    forecast_saved_le <- rbind(forecast_saved_le, forecast_saved_tmp)
+    forecast_saved_soil_moisture <- rbind(forecast_saved_soil_moisture, forecast_saved_tmp)
   }
 }
 
-forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>% 
-  rename(le = `forecast_saved_le$le`) %>% 
-  select(time, ensemble, siteID, obs_flag, nee, le, forecast, data_assimilation)
+forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le, forecast_saved_soil_moisture$vswc) %>% 
+  rename(le = `forecast_saved_le$le`,
+         vswc = `forecast_saved_soil_moisture$vswc`) %>% 
+  select(time, ensemble, siteID, obs_flag, nee, le, vswc, forecast, data_assimilation)
 
 forecast_file_name_base <- paste0("terrestrial-",as_date(start_forecast),"-",team_name)
 forecast_file <- paste0(forecast_file_name_base, ".csv.gz")

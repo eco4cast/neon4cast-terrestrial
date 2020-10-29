@@ -25,7 +25,7 @@ library(jsonlite)
 set.seed(329)
 
 #'Generate plot to visualized forecast
-generate_plots <- FALSE
+generate_plots <- TRUE
 #'Is the forecast run on the Ecological Forecasting Initiative Server?
 #'Setting to TRUE published the forecast on the server.
 efi_server <- TRUE
@@ -167,7 +167,7 @@ for(s in 1:length(site_names)){
     
     
     #Post past and future
-    nee_full_figures[i] <- model_output %>% 
+    model_output %>% 
       group_by(time) %>% 
       summarise(mean = mean(x_obs),
                 upper = quantile(x_obs, 0.975),
@@ -177,6 +177,8 @@ for(s in 1:length(site_names)){
       geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
       geom_point(data = obs, aes(x = time, y = obs), color = "red") +
       labs(x = "Date", y = "nee")
+    
+    ggsave(paste0("nee_daily_",site_names[s],"_figure.pdf"), device = "pdf")
   }
   
   #Filter only the forecasted dates and add columns for required variable
@@ -265,7 +267,7 @@ for(s in 1:length(site_names)){
     obs <- tibble(time = full_time$time,
                   obs = y_wgaps)
     
-    le_figures[i] <- model_output %>% 
+    model_output %>% 
       group_by(time) %>% 
       summarise(mean = mean(x_obs),
                 upper = quantile(x_obs, 0.975),
@@ -275,6 +277,8 @@ for(s in 1:length(site_names)){
       geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
       geom_point(data = obs, aes(x = time, y = obs), color = "red") +
       labs(x = "Date", y = "le")
+    
+    ggsave(paste0("le_daily_",site_names[s],"_figure.pdf"), device = "pdf")
   }
   
   forecast_saved_tmp <- model_output %>%
@@ -290,10 +294,108 @@ for(s in 1:length(site_names)){
   forecast_saved_le <- rbind(forecast_saved_le, forecast_saved_tmp)
 }
 
+#'## Soil moisture
+#' 
+#' See notes from the NEE section above
+#+ message = FALSE
+forecast_saved_soil_moisture <- NULL
+soil_moisture_figures <- list()
+for(s in 1:length(site_names)){
+  
+  site_data_var <- terrestrial_targets %>%
+    filter(siteID == site_names[s])
+  
+  max_time <- max(site_data_var$time) + days(1)
+  
+  start_forecast <- max_time
+  full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "1 day"))
+  
+  site_data_var <- left_join(full_time, site_data_var)
+  
+  y_wgaps <- site_data_var$vswc
+  time <- c(site_data_var$time)
+  
+  y_nogaps <- y_wgaps[!is.na(y_wgaps)]
+  
+  y_wgaps_index <- 1:length(y_wgaps)
+  
+  y_wgaps_index <- y_wgaps_index[!is.na(y_wgaps)]
+  
+  init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
+  
+  data <- list(y = y_nogaps,
+               y_wgaps_index = y_wgaps_index,
+               nobs = length(y_wgaps_index),
+               n = length(y_wgaps),
+               x_ic = 0.3)
+  
+  nchain = 3
+  chain_seeds <- c(200,800,1400)
+  init <- list()
+  for(i in 1:nchain){
+    init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
+                      tau_obs = 1/var(diff(y_nogaps)),
+                      .RNG.name = "base::Wichmann-Hill",
+                      .RNG.seed = chain_seeds[i],
+                      x = init_x)
+  }
+  
+  j.model   <- jags.model (file = textConnection(RandomWalk),
+                           data = data,
+                           inits = init,
+                           n.chains = 3)
+  
+  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_obs"), n.iter = 10000)
+  
+  m   <- coda.samples(model = j.model,
+                      variable.names = c("x","tau_add","tau_obs", "x_obs"),
+                      n.iter = 10000,
+                      thin = 5)
+  
+  model_output <- m %>%
+    spread_draws(x_obs[day]) %>%
+    filter(.chain == 1) %>%
+    rename(ensemble = .iteration) %>%
+    mutate(time = full_time$time[day]) %>%
+    ungroup() %>%
+    select(time, x_obs, ensemble)
+  
+  if(generate_plots){
+    obs <- tibble(time = full_time$time,
+                  obs = y_wgaps)
+    
+    model_output %>% 
+      group_by(time) %>% 
+      summarise(mean = mean(x_obs),
+                upper = quantile(x_obs, 0.975),
+                lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
+      ggplot(aes(x = time, y = mean)) +
+      geom_line() +
+      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
+      geom_point(data = obs, aes(x = time, y = obs), color = "red") +
+      labs(x = "Date", y = "vswc", title = site_names[s])
+    
+    ggsave(paste0("sm_daily_",site_names[s],"_figure.pdf"), device = "pdf")
+  }
+  
+  forecast_saved_tmp <- model_output %>%
+    filter(time > start_forecast) %>%
+    rename(vswc = x_obs) %>% 
+    mutate(data_assimilation = 0,
+           forecast = 1,
+           obs_flag = 2,
+           siteID = site_names[s]) %>%
+    mutate(forecast_iteration_id = start_forecast) %>%
+    mutate(forecast_project_id = team_name)
+  
+  forecast_saved_soil_moisture <- rbind(forecast_saved_soil_moisture, forecast_saved_tmp)
+}
+
 #'Combined the NEE and LE forecasts together and re-order column
-forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>% 
-  rename(le = `forecast_saved_le$le`) %>% 
-  select(time, ensemble, siteID, obs_flag, nee, le, forecast, data_assimilation)
+forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le, forecast_saved_soil_moisture$vswc) %>% 
+  rename(le = `forecast_saved_le$le`,
+         vswc = `forecast_saved_soil_moisture$vswc`) %>% 
+  select(time, ensemble, siteID, obs_flag, nee, le, vswc, forecast, data_assimilation)
 
 #'Save file as CSV in the
 #'[theme_name]-[year]-[month]-[date]-[team_name].csv
@@ -321,6 +423,7 @@ attributes <- tibble::tribble(
   "siteID",             "[dimension]{neon site}",                     NA,                     NA,           "NEON site ID",  "character",
   "obs_flag",          "[flag]{observation error}",                  "dimensionless",         NA,           NA,           "integer",
   "nee",               "[variable]{net ecosystem exchange}",         "dimensionless",         NA,           NA,           "real",
+  "vswc",              "[variable]{volumetric soil water content}",  "dimensionless",         NA,           NA,           "real",
   "le",                "[variable]{latent heat}",                    "dimensionless",         NA,           NA,          "real",
   "forecast",          "[flag]{whether represents forecast}",        "dimensionless",         NA,           NA,          "integer",
   "data_assimilation", "[flag]{whether time step assimilated data}", "dimensionless",         NA,           NA,          "integer"
@@ -328,7 +431,7 @@ attributes <- tibble::tribble(
 
 #' use `EML` package to build the attribute list
 attrList <- EML::set_attributes(attributes, 
-                                col_classes = c("Date", "numeric", "character","numeric", 
+                                col_classes = c("Date", "numeric", "character","numeric","numeric", 
                                                 "numeric","numeric", "numeric","numeric"))
 #' use `EML` package to build the physical list
 physical <- EML::set_physical(forecast_file)
