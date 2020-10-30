@@ -1,6 +1,5 @@
 print(paste0("Running Creating Terrestrial Targets at ", Sys.time()))
 
-renv::restore()
 Sys.setenv("NEONSTORE_HOME" = "/efi_neon_challenge/neonstore")
 
 library(neonUtilities)
