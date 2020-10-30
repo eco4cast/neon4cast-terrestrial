@@ -1,7 +1,5 @@
 print(paste0("Running Creating 30-minute Terrestrial Forecasts at ", Sys.time()))
 
-renv::restore()
-
 pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
 source(pecan_flux_uncertainty)

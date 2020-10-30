@@ -6,7 +6,6 @@ print(paste0("Running Creating Daily Terrestrial Forecasts at ", Sys.time()))
 
 #'Load renv.lock file that includes the versions of all the packages used
 #'You can generate using the command renv::snapshot()
-renv::restore()
 
 #' Required packages.  
 #' EFIstandards is at remotes::install_github("eco4cast/EFIstandards")
@@ -414,161 +413,12 @@ forecast_iteration_id <- start_forecast
 #' The team name is the `forecast_model_id`
 forecast_model_id <- team_name
 
-#'Build attribute table. Other models won't likely change this for the challenge
-#'note: need to fix the units for nee and le because the units do not pass EML unit checks
-attributes <- tibble::tribble(
-  ~attributeName,     ~attributeDefinition,                          ~unit,                  ~formatString,  ~definition, ~numberType,
-  "time",              "[dimension]{time}",                          "year",                 "YYYY-MM-DD",   NA,          "datetime",
-  "ensemble",          "[dimension]{index of ensemble member}",      "dimensionless",         NA,            NA,          "integer",
-  "siteID",             "[dimension]{neon site}",                     NA,                     NA,           "NEON site ID",  "character",
-  "obs_flag",          "[flag]{observation error}",                  "dimensionless",         NA,           NA,           "integer",
-  "nee",               "[variable]{net ecosystem exchange}",         "dimensionless",         NA,           NA,           "real",
-  "vswc",              "[variable]{volumetric soil water content}",  "dimensionless",         NA,           NA,           "real",
-  "le",                "[variable]{latent heat}",                    "dimensionless",         NA,           NA,          "real",
-  "forecast",          "[flag]{whether represents forecast}",        "dimensionless",         NA,           NA,          "integer",
-  "data_assimilation", "[flag]{whether time step assimilated data}", "dimensionless",         NA,           NA,          "integer"
-) 
+meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
+                                        metadata_yaml = "metadata.yml",
+                                        forecast_issue_time = as_date(with_tz(Sys.time(), "UTC")),
+                                        forecast_iteration_id = start_forecast,
+                                        forecast_file_name_base = forecast_file_name_base)
 
-#' use `EML` package to build the attribute list
-attrList <- EML::set_attributes(attributes, 
-                                col_classes = c("Date", "numeric", "character","numeric","numeric", 
-                                                "numeric","numeric", "numeric","numeric"))
-#' use `EML` package to build the physical list
-physical <- EML::set_physical(forecast_file)
-
-#' use `EML` package to dataTable
-dataTable <- eml$dataTable(
-  entityName = "forecast",  ## this is a standard name to allow us to distinguish this entity from 
-  entityDescription = "Forecast of NEE and LE for four NEON sites",
-  physical = physical,
-  attributeList = attrList)
-
-#'This code is for generating the geographicCoverage from NEON supplied EML
-#'It uses the `neonstore` package. The for-loop extracts only one set of 
-#'geographicCoverage for each site.  We have already extracted and saved as a
-#'JSON file.
-#'
-#+ eval=FALSE
-meta <- neonstore::neon_index(ext="xml", product = "DP4.00200.001")
-all <- lapply(meta$path, emld::as_emld)
-geo <- lapply(all, function(x) x$dataset$coverage$geographicCoverage)
-sites_ids <- lapply(geo, function(x) x$id) %>% unlist()
-
-first_name <- rep(NA, length(site_names))
-for(i in 1:length(site_names)){
-  first_name[i] <- min(which(sites_ids == site_names[i]))
-  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum), 4)
-  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum), 4)
-}
-geo[first_name] %>% toJSON() %>% fromJSON() %>% distinct() %>% write_json("meta/terrestrial_geo.json", auto_unbox=TRUE)
-
-#'Read JSON file
-geographicCoverage = jsonlite::read_json("meta/terrestrial_geo.json")
-
-#'Get start and end dates
-temporalCoverage <- list(rangeOfDates =
-                           list(beginDate = list(calendarDate = min(forecast_saved$time)),
-                                endDate = list(calendarDate = max(forecast_saved$time))))
-
-#'Create the coverage EML
-coverage <- list(geographicCoverage = geographicCoverage,
-                 temporalCoverage = temporalCoverage)
-
-#'Create the dataset EML
-dataset <- eml$dataset(
-  title = "Daily persistence null forecast for nee and lee",
-  creator = team_list,
-  contact = list(references=team_list[[1]]$id),
-  pubDate = as_date(forecast_issue_time),
-  intellectualRights = "https://creativecommons.org/licenses/by/4.0/",
-  dataTable = dataTable,
-  coverage = coverage
-)
-
-#'Create extra metadata required for submissions to the challenge
-#'The metadata follows the EFI Forecasting Standards
-additionalMetadata <- eml$additionalMetadata(
-  metadata = list(
-    forecast = list(
-      # Basic elements
-      timestep = "1 day", # should be udunits parsable; already in coverage -> temporalCoverage?
-      forecast_horizon = "35 days",
-      forecast_issue_time = forecast_issue_time,
-      forecast_iteration_id = forecast_iteration_id,
-      forecast_project_id = team_name,
-      metadata_standard_version = "0.3",
-      model_description = list(
-        forecast_model_id = forecast_model_id,
-        name = "state-space Bayesian null",
-        type = "empirical",
-        repository = "https://github.com/eco4cast/neon4cast-terrestrial"
-      ),
-      # MODEL STRUCTURE & UNCERTAINTY CLASSES
-      initial_conditions = list(
-        # Possible values: absent, present, data_driven, propagates, assimilates
-        status = "assimilates",
-        complexity = 2,
-        propagation = list(
-          type = "ensemble",
-          size = max(forecast_saved$ensemble)),
-        assimilation = list(
-          type = "refit",
-          reference = "NA",
-          complexity = 4)
-      ),
-      drivers = list(
-        status = "absent"
-      ),
-      parameters = list(
-        status = "assimilates",
-        complexity = 2,
-        propagation = list(
-          type = "ensemble",
-          size = max(forecast_saved$ensemble)),
-        assimilation = list(
-          type = "refit",
-          reference = "NA",
-          complexity = 4)
-      ),
-      random_effects = list(
-        status = "absent"
-      ),
-      process_error = list(
-        status = "assimilates",
-        complexity = 2,
-        propagation = list(
-          type = "ensemble",
-          size = max(forecast_saved$ensemble)),
-        assimilation = list(
-          type = "refit",
-          reference = "NA",
-          complexity = 4),
-        covariance = FALSE
-      ),
-      obs_error = list(
-        status = "present",
-        complexity = 2
-      )
-    ) # forecast
-  ) # metadata
-) # eml$additionalMetadata
-
-#'Build full EML
-my_eml <- eml$eml(dataset = dataset,
-                  additionalMetadata = additionalMetadata,
-                  packageId = forecast_iteration_id , 
-                  system = "datetime"  ## system used to generate packageId
-)
-
-#'Check base EML
-EML::eml_validate(my_eml)
-
-#'Check that EML matches EFI Standards
-EFIstandards::forecast_validator(my_eml)
-
-#'Write metadata
-meta_data_filename <-  paste0(forecast_file_name_base,".xml")
-write_eml(my_eml, meta_data_filename)
 
 #'Publish the forecast automatically.  Run only on EFI Challenge server
 if(efi_server){
