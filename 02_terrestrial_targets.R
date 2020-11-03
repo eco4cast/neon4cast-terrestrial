@@ -78,7 +78,9 @@ flux_target_daily <- flux_target_30m %>%
   summarize(nee = mean(nee, na.rm = TRUE),
             le = mean(le, na.rm = TRUE)) %>% 
   mutate(nee = ifelse(date %in% valid_dates_nee$date, nee, NA),
-         le = ifelse(date %in% valid_dates_le$date, le, NA)) %>% 
+         le = ifelse(date %in% valid_dates_le$date, le, NA),
+         nee = ifelse(is.nan(nee), NA, nee),
+         le = ifelse(is.nan(le),NA, le)) %>% 
   rename(time = date) %>% 
   mutate(nee = (nee * 12 / 1000000) * (60 * 60 * 24))
 
@@ -127,20 +129,25 @@ flux_target_30m <- left_join(flux_target_30m, site_uncertainty, by = "siteID")
 
 ########
 
-neon_store(table = "SWS_30_minute", n = 500) 
-neon_store(table = "sensor_positions", n = 500) 
+neon_store(table = "SWS_30_minute", n = 50) 
+neon_store(table = "sensor_positions", n = 50) 
 d2 <- neon_read(table = "sensor_positions") 
 sm30 <- neon_table(table = "SWS_30_minute")
 sensor_positions <- neon_table(table = "sensor_positions")
+
+sensor_positions <- sensor_positions %>%  
+  filter(str_detect(referenceName, "SOIL")) %>% 
+  mutate(horizontalPosition = str_sub(HOR.VER, 1, 1),
+         verticalPosition = str_sub(HOR.VER, 3, 5),
+         siteID = str_sub(file, 10, 13),
+         horizontalPosition = as.numeric(horizontalPosition)) %>% 
+  rename(sensorDepths = zOffset) %>% 
+  filter(siteID %in% c("KONZ", "BART", "OSBS", "SRER")) %>% 
+  select(sensorDepths, horizontalPosition, verticalPosition, siteID)
 # 
-sensor_positions <- sensor_positions %>% 
-   mutate(horizontalPosition = str_sub(sensor_positions$HOR.VER, 1, 3),
-          verticalPosition = str_sub(HOR.VER, 5, 7),
-          siteID = str_sub(file, 10, 13)) %>% 
-   rename(sensorDepths = zOffset) %>% 
-   filter(siteID %in% c("KONZ", "BART", "OSBS", "SRER")) %>% 
-   select(sensorDepths, horizontalPosition, verticalPosition, siteID)
- 
+
+sm30 <- sm30 %>% 
+  mutate(horizontalPosition = as.numeric(horizontalPosition))
 sm3_combined <- left_join(sm30, sensor_positions, by = c("siteID", "verticalPosition", "horizontalPosition"))
    
  
@@ -152,11 +159,12 @@ sm3_combined <- sm3_combined %>%
   mutate(sensorDepths = -sensorDepths)
  
 sm3_combined <- sm3_combined %>% 
-   filter(horizontalPosition == "003" & sensorDepths < 0.30) %>% 
+   filter(horizontalPosition == 3 & sensorDepths < 0.30) %>% 
   mutate(depth = NA,
     depth = ifelse(sensorDepths <= 0.07, 0.05, depth),
           depth = ifelse(sensorDepths > 0.07 & sensorDepths < 0.20, 0.15, depth),
-          depth = ifelse(sensorDepths > 0.20 & sensorDepths < 0.30, 0.25, depth))
+          depth = ifelse(sensorDepths > 0.20 & sensorDepths < 0.30, 0.25, depth)) %>% 
+  filter(depth == 0.15)
 
 sm3_combined %>% 
   ggplot(aes(x = startDateTime, y = VSWCMean, color = factor(depth))) + 

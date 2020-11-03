@@ -53,8 +53,8 @@ generate_metadata <- function(forecast_file, metadata_yaml, forecast_issue_time,
   fullgeographicCoverage <- jsonlite::read_json("meta/terrestrial_geo.json")
   
   site_id_index <- NULL
-  for(i in 1:length(geographicCoverage)){
-    if(geographicCoverage[[i]]$id %in% metadata$sites)
+  for(i in 1:length(fullgeographicCoverage)){
+    if(fullgeographicCoverage[[i]]$id %in% metadata$sites)
       site_id_index <- c(site_id_index, i)
   }
   
