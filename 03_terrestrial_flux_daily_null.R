@@ -53,6 +53,14 @@ download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial-dail
 #'NA values at the beginning of the file
 terrestrial_targets <- read_csv("terrestrial-daily-targets.csv.gz", guess_max = 10000)
 
+download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial-30min-targets.csv.gz",
+              "terrestrial-30min-targets.csv.gz")
+
+terrestrial_targets_30min <- read_csv("terrestrial-30min-targets.csv.gz", guess_max = 10000)
+
+nee_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
+le_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
+
 #'Focal sites
 site_names <- c("BART","KONZ","OSBS","SRER")
 
@@ -62,19 +70,19 @@ RandomWalk = "
 model{
 
   # Priors
-  x[1] ~ dnorm(x_ic,tau_obs)
+  x[1] ~ dnorm(x_ic,tau_init)
   tau_add ~ dgamma(0.1,0.1)
-  tau_obs ~ dgamma(0.1,0.1)
-
+  tau_init ~ dgamma(0.1,0.1)
+  
   # Process Model
   for(t in 2:n){
     x[t]~dnorm(x[t-1],tau_add)
-    x_obs[t] ~ dnorm(x[t],tau_obs)
+    x_obs[t] ~ dnorm(x[t],tau_obs[t])
   }
 
   # Data Model
   for(i in 1:nobs){
-    y[i] ~ dnorm(x[y_wgaps_index[i]], tau_obs)
+    y[i] ~ dnorm(x[y_wgaps_index[i]], tau_obs[y_wgaps_index[i]])
   }
 
 }
@@ -120,6 +128,7 @@ for(s in 1:length(site_names)){
   data <- list(y = y_nogaps,
                y_wgaps_index = y_wgaps_index,
                nobs = length(y_wgaps_index),
+               tau_obs = 1/(nee_sd ^ 2),
                n = length(y_wgaps),
                x_ic = 0.0)
   
@@ -129,7 +138,7 @@ for(s in 1:length(site_names)){
   init <- list()
   for(i in 1:nchain){
     init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
-                      tau_obs = 10 * 1/var(diff(y_nogaps)),
+                      tau_init = mean( 1/var(diff(y_nogaps)), na.rm = TRUE),
                       .RNG.name = "base::Wichmann-Hill",
                       .RNG.seed = chain_seeds[i],
                       x = init_x)
@@ -142,11 +151,11 @@ for(s in 1:length(site_names)){
                            n.chains = 3)
   
   #Run JAGS model as the burn-in
-  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_obs"), n.iter = 10000)
+  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_init"), n.iter = 10000)
   
   #Run JAGS model again and sample from the posteriors
   m   <- coda.samples(model = j.model,
-                      variable.names = c("x","tau_add","tau_obs", "x_obs"),
+                      variable.names = c("x","tau_add","tau_init", "x_obs"),
                       n.iter = 10000,
                       thin = 5)
   
@@ -200,6 +209,8 @@ for(s in 1:length(site_names)){
 #' 
 #' See notes from the NEE section above
 #+ message = FALSE
+
+
 forecast_saved_le <- NULL
 le_figures <- list()
 for(s in 1:length(site_names)){
@@ -228,6 +239,7 @@ for(s in 1:length(site_names)){
   data <- list(y = y_nogaps,
                y_wgaps_index = y_wgaps_index,
                nobs = length(y_wgaps_index),
+               tau_obs = 1/(le_sd ^ 2),
                n = length(y_wgaps),
                x_ic = 0.0)
   
@@ -236,7 +248,7 @@ for(s in 1:length(site_names)){
   init <- list()
   for(i in 1:nchain){
     init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
-                      tau_obs = 1/var(diff(y_nogaps)),
+                      tau_init = mean(1/var(diff(y_nogaps)), na.rm = TRUE),
                       .RNG.name = "base::Wichmann-Hill",
                       .RNG.seed = chain_seeds[i],
                       x = init_x)
@@ -247,10 +259,10 @@ for(s in 1:length(site_names)){
                            inits = init,
                            n.chains = 3)
   
-  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_obs"), n.iter = 10000)
+  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_init"), n.iter = 10000)
   
   m   <- coda.samples(model = j.model,
-                      variable.names = c("x","tau_add","tau_obs", "x_obs"),
+                      variable.names = c("x","tau_add","tau_init", "x_obs"),
                       n.iter = 10000,
                       thin = 5)
   
@@ -297,6 +309,8 @@ for(s in 1:length(site_names)){
 #' 
 #' See notes from the NEE section above
 #+ message = FALSE
+
+vswc_sd <-  rep(mean(terrestrial_targets$vswc_sd, na.rm = TRUE), length(terrestrial_targets$vswc_sd))
 forecast_saved_soil_moisture <- NULL
 soil_moisture_figures <- list()
 for(s in 1:length(site_names)){
@@ -325,6 +339,7 @@ for(s in 1:length(site_names)){
   data <- list(y = y_nogaps,
                y_wgaps_index = y_wgaps_index,
                nobs = length(y_wgaps_index),
+               tau_obs = 1/(vswc_sd ^ 2),
                n = length(y_wgaps),
                x_ic = 0.3)
   
@@ -333,7 +348,7 @@ for(s in 1:length(site_names)){
   init <- list()
   for(i in 1:nchain){
     init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
-                      tau_obs = 1/var(diff(y_nogaps)),
+                      tau_init = mean(1/var(diff(y_nogaps)), na.rm = TRUE),
                       .RNG.name = "base::Wichmann-Hill",
                       .RNG.seed = chain_seeds[i],
                       x = init_x)
@@ -344,10 +359,10 @@ for(s in 1:length(site_names)){
                            inits = init,
                            n.chains = 3)
   
-  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_obs"), n.iter = 10000)
+  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_init"), n.iter = 10000)
   
   m   <- coda.samples(model = j.model,
-                      variable.names = c("x","tau_add","tau_obs", "x_obs"),
+                      variable.names = c("x","tau_add","tau_init", "x_obs"),
                       n.iter = 10000,
                       thin = 5)
   

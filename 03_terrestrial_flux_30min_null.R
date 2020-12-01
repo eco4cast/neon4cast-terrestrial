@@ -43,15 +43,15 @@ RandomWalk = "
 model{
 
   #### Priors
-  for(t in 1:12){
+  for(t in 1:48){
     x[t] ~ dnorm(x_ic[t], tau_init)
   }
   tau_add ~ dgamma(0.1,0.1)
   tau_init ~ dgamma(0.1,0.1)
 
   #### Process Model
-  for(t in 13:n){
-    x[t]~dnorm(x[t-12], tau_add)
+  for(t in 49:n){
+    x[t]~dnorm(x[t-48], tau_add)
     
     tau_obs[t] <- pow(ifelse(x[t] >= 0, (sqrt(2) * (obs_intercept + x[t] * obs_slopeP)), (sqrt(2) * (obs_intercept + x[t] * obs_slopeN))), -2)
     #tau_obs <- 1 / pow(sd_obs, 2)
@@ -111,7 +111,7 @@ for(s in 1:length(site_names)){
                y_wgaps_index = y_wgaps_index,
                nobs = length(y_wgaps_index),
                n = length(y_wgaps),
-               x_ic = rep(0.0, 12),
+               x_ic = rep(0.0, 48),
                obs_intercept = site_data_var$nee_sd_intercept[1],
                obs_slopeP = site_data_var$nee_sd_slopeP[1],
                obs_slopeN = site_data_var$nee_sd_slopeN[1]
@@ -158,7 +158,7 @@ for(s in 1:length(site_names)){
   rm(m)
   gc()
   
-  nee_figures[s] <- model_output %>% 
+  model_output %>% 
     group_by(time) %>% 
     summarise(mean = mean(x_obs),
               upper = quantile(x_obs, 0.975),
@@ -169,7 +169,7 @@ for(s in 1:length(site_names)){
     geom_point(data = obs, aes(x = time, y = obs), color = "red") +
     labs(x = "Date", y = "nee", title = site_names[s])
   
-  ggsave(paste0("nee_30min_",site_names[s],"_figure.pdf"), nee_figures[s], device = "pdf")
+  ggsave(paste0("nee_30min_",site_names[s],"_figure.pdf"), device = "pdf")
   
     forecast_saved_tmp <- model_output %>%
       filter(time > start_forecast) %>%
@@ -237,7 +237,7 @@ for(s in 1:length(site_names)){
                y_wgaps_index = y_wgaps_index,
                nobs = length(y_wgaps_index),
                n = length(y_wgaps),
-               x_ic = rep(0.0, 12),
+               x_ic = rep(0.0, 48),
                obs_intercept = site_data_var$le_sd_intercept,
                obs_slopeP = le_sd_slopeP,
                obs_slopeN = le_sd_slopeN)
@@ -279,7 +279,7 @@ for(s in 1:length(site_names)){
   obs <- tibble(time = full_time$time,
                 obs = y_wgaps)
   
-  le_figures[s] <- model_output %>% 
+  model_output %>% 
     group_by(time) %>% 
     summarise(mean = mean(x_obs),
               upper = quantile(x_obs, 0.975),
@@ -290,7 +290,7 @@ for(s in 1:length(site_names)){
     geom_point(data = obs, aes(x = time, y = obs), color = "red") +
     labs(x = "Date", y = "le", title = site_names[s])
   
-  ggsave(paste0("le_30min_",site_names[s],"_figure.pdf"), le_figures[s], device = "pdf")
+  ggsave(paste0("le_30min_",site_names[s],"_figure.pdf"), device = "pdf")
   
   if(s == 1){
     forecast_saved_le <- model_output %>%
@@ -381,7 +381,7 @@ for(s in 1:length(site_names)){
                y_wgaps_index = y_wgaps_index,
                nobs = length(y_wgaps_index),
                n = length(y_wgaps),
-               x_ic = rep(0.0, 12),
+               x_ic = rep(0.0, 48),
                tau_obs = 1/(site_data_var$vswc_sd^2))
   
   nchain = 3
@@ -421,7 +421,7 @@ for(s in 1:length(site_names)){
   obs <- tibble(time = full_time$time,
                 obs = y_wgaps)
   
-  soil_moisture_figures[s] <- model_output %>% 
+  model_output %>% 
     group_by(time) %>% 
     summarise(mean = mean(x_obs),
               upper = quantile(x_obs, 0.975),
@@ -432,7 +432,7 @@ for(s in 1:length(site_names)){
     geom_point(data = obs, aes(x = time, y = obs), color = "red") +
     labs(x = "Date", y = "vswc", title = site_names[s])
   
-  ggsave(paste0("soil_moisture_30min_",site_names[s],"_figure.pdf"), soil_moisture_figures[s], device = "pdf")
+  ggsave(paste0("soil_moisture_30min_",site_names[s],"_figure.pdf"), device = "pdf")
   
   if(s == 1){
     forecast_saved_soil_moisture <- model_output %>%
@@ -473,148 +473,12 @@ forecast_issue_time <- as_date(curr_time)
 forecast_iteration_id <- start_forecast
 forecast_model_id <- team_name
 
-## define variable names, units, etc
-## in practice, this might be kept in a spreadsheet
-attributes <- tibble::tribble(
-  ~attributeName,     ~attributeDefinition,                          ~unit,                  ~formatString,  ~definition, ~numberType,
-  "time",              "[dimension]{time}",                          "year",                 "YYYY-MM-DD",   NA,          "datetime",
-  "ensemble",          "[dimension]{index of ensemble member}",      "dimensionless",         NA,            NA,          "integer",
-  "siteID",             "[dimension]{neon site}",                     NA,                     NA,           "NEON site ID",  "character",
-  "obs_flag",          "[flag]{observation error}",                  "dimensionless",         NA,           NA,           "integer",
-  "nee",               "[variable]{net ecosystem exchange}",         "numberPerMeterSquared", NA,           NA,           "real",
-  "le",                "[variable]{latent heat}",                    "numberPerMeterSquared", NA,           NA,          "real",
-  "forecast",          "[flag]{whether represents forecast}",        "dimensionless",         NA,           NA,          "integer",
-  "data_assimilation", "[flag]{whether time step assimilated data}", "dimensionless",         NA,           NA,          "integer"
-) 
-
-## note: EML uses a different unit standard than UDUNITS. For now use EML. EFI needs to provide a custom unitList.
-attrList <- EML::set_attributes(attributes, 
-                                col_classes = c("Date", "numeric", "character","numeric", 
-                                                "numeric","numeric", "numeric","numeric"))
-
-physical <- set_physical(forecast_file)
-
-dataTable <- eml$dataTable(
-  entityName = "forecast",  ## this is a standard name to allow us to distinguish this entity from 
-  entityDescription = "Forecast of NEE and LE for four NEON sites",
-  physical = physical,
-  attributeList = attrList)
-
-#meta <- neonstore::neon_index(ext="xml", product = "DP4.00200.001")
-#all <- lapply(meta$path, emld::as_emld)
-#geo <- lapply(all, function(x) x$dataset$coverage$geographicCoverage)
-#sites_ids <- lapply(geo, function(x) x$id) %>% unlist() 
-
-#first_name <- rep(NA, length(site_names))
-#for(i in 1:length(site_names)){
-#  first_name[i] <- min(which(sites_ids == site_names[i]))
-#  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMinimum), 4)
-#  geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum <- round(as.numeric(geo[[first_name[i]]]$boundingCoordinates$boundingAltitudes$altitudeMaximum), 4)
-#}
-#geo[first_name] %>% toJSON() %>% fromJSON() %>% distinct() %>% write_json("meta/terrestrial_geo.json", auto_unbox=TRUE)
-
-temporalCoverage <- list(rangeOfDates =
-                           list(beginDate = list(calendarDate = min(forecast_saved$time)),
-                                endDate = list(calendarDate = max(forecast_saved$time))))
-
-geographicCoverage = jsonlite::read_json("meta/terrestrial_geo.json")
-
-coverage <- list(geographicCoverage = geographicCoverage,
-                 temporalCoverage = temporalCoverage)
-
-dataset = eml$dataset(
-  title = "Daily persistence null forecast for nee and lee",
-  creator = team_list,
-  contact = list(references=team_list[[1]]$id),
-  pubDate = as_date(forecast_issue_time),
-  intellectualRights = "https://creativecommons.org/licenses/by/4.0/",
-  dataTable = dataTable,
-  coverage = coverage
-)
-
-#Minimal metdata
-additionalMetadata <- eml$additionalMetadata(
-  metadata = list(
-    forecast = list(
-      ## Basic elements
-      timestep = "30 minute", ## should be udunits parsable; already in coverage -> temporalCoverage?
-      forecast_horizon = "35 days",
-      forecast_issue_time = forecast_issue_time,
-      forecast_iteration_id = forecast_iteration_id,
-      forecast_project_id = forecast_project_id,
-      metadata_standard_version = "0.3",
-      model_description = list(
-        forecast_model_id = forecast_model_id,
-        name = "state-space Bayesian null",
-        type = "empirical",
-        repository = "https://github.com/eco4cast/neon4cast-terrestrial"
-      ),
-      ## MODEL STRUCTURE & UNCERTAINTY CLASSES
-      initial_conditions = list(
-        # Possible values: absent, present, data_driven, propagates, assimilates
-        status = "assimilates",
-        complexity = 2,
-        propagation = list(
-          type = "ensemble",
-          size = max(forecast_saved$ensemble)),
-        assimilation = list(
-          type = "refit",
-          reference = "NA",
-          complexity = 4)
-      ),
-      drivers = list(
-        status = "absent"
-      ),
-      parameters = list(
-        status = "assimilates",
-        complexity = 2,
-        propagation = list(
-          type = "ensemble",
-          size = max(forecast_saved$ensemble)),
-        assimilation = list(
-          type = "refit",
-          reference = "NA",
-          complexity = 4)
-      ),
-      random_effects = list(
-        status = "absent"
-      ),
-      process_error = list(
-        status = "assimilates",
-        complexity = 2,
-        propagation = list(
-          type = "ensemble",
-          size = max(forecast_saved$ensemble)),
-        assimilation = list(
-          type = "refit",
-          reference = "NA",
-          complexity = 4),
-        covariance = FALSE
-      ),
-      obs_error = list(
-        status = "present",
-        complexity = 2
-      )
-    ) # forecast
-  ) # metadata
-) # eml$additionalMetadata
-
-
-my_eml <- eml$eml(dataset = dataset,
-                  additionalMetadata = additionalMetadata,
-                  packageId = forecast_iteration_id , 
-                  system = "datetime"  ## system used to generate packageId
-)
-
-## check base EML
-EML::eml_validate(my_eml)
-
-EFIstandards::forecast_validator(my_eml)
-
-meta_data_filename <-  paste0(forecast_file_name_base,".xml")
-
-write_eml(my_eml, meta_data_filename)
-
+source("generate_metadata.R")
+meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
+                                        metadata_yaml = "metadata_30min.yml",
+                                        forecast_issue_time = as_date(with_tz(Sys.time(), "UTC")),
+                                        forecast_iteration_id = start_forecast,
+                                        forecast_file_name_base = forecast_file_name_base)
 ## Publish the forecast automatically. (EFI-only)
 
 source("../neon4cast-shared-utilities/publish.R")

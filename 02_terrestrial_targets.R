@@ -6,7 +6,7 @@ pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
 source(pecan_flux_uncertainty)
 
-remotes::install_github("cboettig/neonstore")
+#remotes::install_github("cboettig/neonstore")
 
 
 library(neonUtilities)
@@ -26,25 +26,51 @@ flux_data <- flux_data %>%
   mutate(time = as_datetime(timeBgn))
 
 co2_data <- flux_data %>% 
-  filter(qfqm.fluxCo2.turb.qfFinl == 0 & abs(data.fluxCo2.turb.flux) < 75) %>% 
-  select(time,data.fluxCo2.turb.flux, siteID) %>% 
+  filter(qfqm.fluxCo2.turb.qfFinl == 0 & data.fluxCo2.turb.flux > -50 & data.fluxCo2.turb.flux < 50 & data.fluxMome.turb.veloFric >= 0.2) %>% 
+  select(time,data.fluxCo2.turb.flux, siteID, data.fluxH2o.turb.flux) %>% 
   rename(nee = data.fluxCo2.turb.flux) %>% 
   mutate(nee = ifelse(siteID == "OSBS" & year(time) < 2019, NA, nee),
-         nee = ifelse(siteID == "SRER" & year(time) < 2019, NA, nee))
-
-le_data <-  flux_data %>% 
-  filter(qfqm.fluxH2o.turb.qfFinl == 0) %>% 
-  select(time,data.fluxH2o.turb.flux, siteID)%>% 
+         nee = ifelse(siteID == "SRER" & year(time) < 2019, NA, nee)) %>% 
   rename(le = data.fluxH2o.turb.flux) %>% 
   mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
-         le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
+                  le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
 
-earliest <- min(as_datetime(c(co2_data$time,le_data$time)), na.rm = TRUE)
-latest <- max(as_datetime(c(co2_data$time,le_data$time)), na.rm = TRUE)
+ggplot(co2_data, aes(x = time, y = nee)) +
+  geom_point() +
+  facet_wrap(~siteID)
+
+#Filter by qfFinal flow storage
+
+#co2_data <- flux_data %>% 
+#  filter(qfqm.fluxCo2.nsae.qfFinl == 0 & abs(data.fluxCo2.nsae.flux) < 50) %>% 
+#  select(time,data.fluxCo2.nsae.flux, siteID) %>% 
+#  rename(nee = data.fluxCo2.nsae.flux) %>% 
+#  mutate(nee = ifelse(siteID == "OSBS" & year(time) < 2019, NA, nee),
+#         nee = ifelse(siteID == "SRER" & year(time) < 2019, NA, nee))
+
+ggplot(co2_data, aes(x = time, y = nee)) +
+  geom_point() +
+  facet_wrap(~siteID)
 
 
-full_time <- seq(min(c(co2_data$time,le_data$time), na.rm = TRUE), 
-                 max(c(co2_data$time,le_data$time), na.rm = TRUE), 
+
+#le_data <-  flux_data %>% 
+#  filter(qfqm.fluxH2o.turb.qfFinl == 0) %>% 
+#  select(time,data.fluxH2o.turb.flux, siteID)%>% 
+#  rename(le = data.fluxH2o.turb.flux) %>% 
+#  mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
+#         le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
+
+ggplot(le_data, aes(x = time, y = le)) +
+  geom_point() +
+  facet_wrap(~siteID)
+
+earliest <- min(as_datetime(c(co2_data$time)), na.rm = TRUE)
+latest <- max(as_datetime(c(co2_data$time)), na.rm = TRUE)
+
+
+full_time <- seq(min(c(co2_data$time), na.rm = TRUE), 
+                 max(c(co2_data$time), na.rm = TRUE), 
                  by = "30 min")
 
 full_time <- tibble(time = rep(full_time, 4),
@@ -54,8 +80,12 @@ full_time <- tibble(time = rep(full_time, 4),
                                rep("SRER", length(full_time))))
 
 
-flux_target1 <- left_join(full_time, co2_data, by = c("time", "siteID"))
-flux_target_30m <- left_join(flux_target1, le_data, by = c("time", "siteID"))
+flux_target_30m <- left_join(full_time, co2_data, by = c("time", "siteID"))
+
+ggplot(flux_target_30m, aes(x = time, y = nee)) +
+  geom_point() +
+  facet_wrap(~siteID)
+
 
 valid_dates_nee <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
@@ -71,7 +101,6 @@ valid_dates_le <- flux_target_30m %>%
   summarise(count = n()) %>% 
   filter(count >= 44)
 
-
 flux_target_daily <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
   group_by(date, siteID) %>% 
@@ -84,9 +113,13 @@ flux_target_daily <- flux_target_30m %>%
   rename(time = date) %>% 
   mutate(nee = (nee * 12 / 1000000) * (60 * 60 * 24))
 
+ggplot(flux_target_daily, aes(x = time, y = nee)) + 
+  geom_point() +
+  facet_wrap(~siteID)
+
 
 nee_intercept <- rep(NA, length(site_names))
-ne_sd_slopeP <- rep(NA, length(site_names))
+nee_sd_slopeP <- rep(NA, length(site_names))
 nee_sd_slopeN <- rep(NA, length(site_names)) 
 le_intercept <- rep(NA, length(site_names))
 le_sd_slopeP <- rep(NA, length(site_names))
@@ -102,7 +135,7 @@ for(s in 1:length(site_names)){
                           bin.num = 30)
   
   nee_intercept[s] <- unc$intercept
-  ne_sd_slopeP[s] <- unc$slopeP
+  nee_sd_slopeP[s] <- unc$slopeP
   nee_sd_slopeN[s] <- unc$slopeN
   
   unc <- flux.uncertainty(measurement = temp$le, 
@@ -116,9 +149,14 @@ for(s in 1:length(site_names)){
   
 }
 
+nee_sd_slopeN[which(nee_sd_slopeN > 0)] <- 0
+nee_sd_slopeP[which(nee_sd_slopeN < 0)] <- 0
+le_sd_slopeN[which(le_sd_slopeN > 0)] <- 0
+le_sd_slopeP[which(le_sd_slopeN < 0)] <- 0
+
 site_uncertainty <- tibble(siteID = site_names,
                            nee_sd_intercept = nee_intercept,
-                           nee_sd_slopeP = ne_sd_slopeP,
+                           nee_sd_slopeP = nee_sd_slopeP,
                            nee_sd_slopeN = nee_sd_slopeN,
                            le_sd_intercept = le_intercept,
                            le_sd_slopeP = le_sd_slopeP,
@@ -169,7 +207,7 @@ sm3_combined <- sm3_combined %>%
 sm3_combined %>% 
   ggplot(aes(x = startDateTime, y = VSWCMean, color = factor(depth))) + 
   geom_point() +
-  facet_wrap(~siteID)
+  facet_wrap(~siteID, scale = "free")
 
 sm30_target <- sm3_combined %>% 
   mutate(time = lubridate::as_datetime(startDateTime)) %>% 
@@ -190,7 +228,15 @@ sm_daily_target <- sm3_combined %>%
     
 terrestrial_target_30m <- full_join(flux_target_30m, sm30_target)
 
+ggplot(terrestrial_target_30m, aes(x = time, y = nee)) +
+  geom_point() +
+  facet_wrap(~siteID)
+
 terrestrial_target_daily <- full_join(flux_target_daily, sm_daily_target)
+
+ggplot(terrestrial_target_daily, aes(x = time, y = nee)) +
+  geom_point() +
+  facet_wrap(~siteID)
 
 write_csv(terrestrial_target_30m, "terrestrial-30min-targets.csv.gz")
 write_csv(terrestrial_target_daily, "terrestrial-daily-targets.csv.gz")
