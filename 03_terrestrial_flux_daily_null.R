@@ -417,6 +417,10 @@ forecast_file_name_base <- paste0("terrestrial-",as_date(start_forecast),"-",tea
 forecast_file <- paste0(forecast_file_name_base, ".csv.gz")
 write_csv(forecast_saved, forecast_file)
 
+ggplot(forecast_saved, aes(x = time, y = vswc, group = ensemble)) + 
+  geom_line() +
+  facet_wrap(~siteID)
+
 #'#Generate metadata
 
 #'Get system time for setting the issue time of the forecast

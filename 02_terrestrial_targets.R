@@ -35,9 +35,9 @@ co2_data <- flux_data %>%
   mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
                   le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
 
-ggplot(co2_data, aes(x = time, y = nee)) +
-  geom_point() +
-  facet_wrap(~siteID)
+#ggplot(co2_data, aes(x = time, y = nee)) +
+#  geom_point() +
+#  facet_wrap(~siteID)
 
 #Filter by qfFinal flow storage
 
@@ -48,9 +48,9 @@ ggplot(co2_data, aes(x = time, y = nee)) +
 #  mutate(nee = ifelse(siteID == "OSBS" & year(time) < 2019, NA, nee),
 #         nee = ifelse(siteID == "SRER" & year(time) < 2019, NA, nee))
 
-ggplot(co2_data, aes(x = time, y = nee)) +
-  geom_point() +
-  facet_wrap(~siteID)
+#ggplot(co2_data, aes(x = time, y = nee)) +
+#  geom_point() +
+#  facet_wrap(~siteID)
 
 
 
@@ -61,9 +61,9 @@ ggplot(co2_data, aes(x = time, y = nee)) +
 #  mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
 #         le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
 
-ggplot(le_data, aes(x = time, y = le)) +
-  geom_point() +
-  facet_wrap(~siteID)
+#ggplot(le_data, aes(x = time, y = le)) +
+#  geom_point() +
+#  facet_wrap(~siteID)
 
 earliest <- min(as_datetime(c(co2_data$time)), na.rm = TRUE)
 latest <- max(as_datetime(c(co2_data$time)), na.rm = TRUE)
@@ -82,9 +82,9 @@ full_time <- tibble(time = rep(full_time, 4),
 
 flux_target_30m <- left_join(full_time, co2_data, by = c("time", "siteID"))
 
-ggplot(flux_target_30m, aes(x = time, y = nee)) +
-  geom_point() +
-  facet_wrap(~siteID)
+#ggplot(flux_target_30m, aes(x = time, y = nee)) +
+#  geom_point() +
+#  facet_wrap(~siteID)
 
 
 valid_dates_nee <- flux_target_30m %>% 
@@ -113,9 +113,9 @@ flux_target_daily <- flux_target_30m %>%
   rename(time = date) %>% 
   mutate(nee = (nee * 12 / 1000000) * (60 * 60 * 24))
 
-ggplot(flux_target_daily, aes(x = time, y = nee)) + 
-  geom_point() +
-  facet_wrap(~siteID)
+#ggplot(flux_target_daily, aes(x = time, y = nee)) + 
+#  geom_point() +
+#  facet_wrap(~siteID)
 
 
 nee_intercept <- rep(NA, length(site_names))
@@ -175,8 +175,9 @@ sensor_positions <- neon_table(table = "sensor_positions")
 
 sensor_positions <- sensor_positions %>%  
   filter(str_detect(referenceName, "SOIL")) %>% 
-  mutate(horizontalPosition = str_sub(HOR.VER, 1, 1),
-         verticalPosition = str_sub(HOR.VER, 3, 5),
+  mutate(horizontalPosition = str_sub(HOR.VER, 1, 3),
+         verticalPosition = str_sub(HOR.VER, 5, 7),
+         verticalPosition = as.numeric(verticalPosition),
          siteID = str_sub(file, 10, 13),
          horizontalPosition = as.numeric(horizontalPosition)) %>% 
   rename(sensorDepths = zOffset) %>% 
@@ -184,8 +185,11 @@ sensor_positions <- sensor_positions %>%
   select(sensorDepths, horizontalPosition, verticalPosition, siteID)
 # 
 
+
+
 sm30 <- sm30 %>% 
-  mutate(horizontalPosition = as.numeric(horizontalPosition))
+  mutate(horizontalPosition = as.numeric(horizontalPosition),
+         verticalPosition = as.numeric(verticalPosition))
 sm3_combined <- left_join(sm30, sensor_positions, by = c("siteID", "verticalPosition", "horizontalPosition"))
    
  
@@ -202,41 +206,61 @@ sm3_combined <- sm3_combined %>%
     depth = ifelse(sensorDepths <= 0.07, 0.05, depth),
           depth = ifelse(sensorDepths > 0.07 & sensorDepths < 0.20, 0.15, depth),
           depth = ifelse(sensorDepths > 0.20 & sensorDepths < 0.30, 0.25, depth)) %>% 
-  filter(depth == 0.15)
+  filter(depth == 0.15) %>% 
+  rename(time = startDateTime)
+
+
+earliest <- min(as_datetime(c(flux_target_30m$time)), na.rm = TRUE)
+latest <- max(as_datetime(c(sm3_combined$time)), na.rm = TRUE)
+
+
+full_time <- seq(earliest, 
+                 latest, 
+                 by = "30 min")
+
+full_time <- tibble(time = rep(full_time, 4),
+                    siteID = c(rep("BART", length(full_time)),
+                               rep("KONZ", length(full_time)),
+                               rep("OSBS", length(full_time)),
+                               rep("SRER", length(full_time))))
+
+sm3_combined <- left_join(full_time, sm3_combined, by = c("time", "siteID"))
+
+
 
 sm3_combined %>% 
-  ggplot(aes(x = startDateTime, y = VSWCMean, color = factor(depth))) + 
+  ggplot(aes(x = time, y = VSWCMean, color = factor(depth))) + 
   geom_point() +
   facet_wrap(~siteID, scale = "free")
 
 sm30_target <- sm3_combined %>% 
-  mutate(time = lubridate::as_datetime(startDateTime)) %>% 
+  mutate(time = lubridate::as_datetime(time)) %>% 
   rename(vswc = VSWCMean,
          vswc_sd = VSWCExpUncert) %>% 
   select(time, siteID, vswc, vswc_sd) 
   
 
 sm_daily_target <- sm3_combined %>% 
-  select(startDateTime, siteID, VSWCMean, VSWCExpUncert) %>% 
-  mutate(time = lubridate::as_date(startDateTime)) %>% 
+  select(time, siteID, VSWCMean, VSWCExpUncert) %>% 
+  mutate(time = lubridate::as_date(time)) %>% 
   group_by(time, siteID) %>% 
     summarise(vswc = mean(VSWCMean, na.rm = TRUE),
               count = sum(!is.na(VSWCMean)),
               vswc_sd = mean(VSWCExpUncert)/sqrt(count)) %>% 
-    dplyr::filter(count > 44) %>% 
+    dplyr::mutate(vswc = ifelse(count > 23, vswc, NA)) %>% 
     dplyr::select(time, siteID, vswc, vswc_sd)
     
 terrestrial_target_30m <- full_join(flux_target_30m, sm30_target)
 
-ggplot(terrestrial_target_30m, aes(x = time, y = nee)) +
+ggplot(terrestrial_target_30m, aes(x = time, y = vswc)) +
   geom_point() +
   facet_wrap(~siteID)
 
 terrestrial_target_daily <- full_join(flux_target_daily, sm_daily_target)
 
-ggplot(terrestrial_target_daily, aes(x = time, y = nee)) +
-  geom_point() +
-  facet_wrap(~siteID)
+#ggplot(terrestrial_target_daily, aes(x = time, y = nee)) +
+#  geom_point() +
+#  facet_wrap(~siteID)
 
 write_csv(terrestrial_target_30m, "terrestrial-30min-targets.csv.gz")
 write_csv(terrestrial_target_daily, "terrestrial-daily-targets.csv.gz")
