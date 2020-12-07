@@ -32,8 +32,8 @@ team_list <- list(list(individualName = list(givenName = "Quinn", surName = "Tho
 team_name <- "pnull30min"
 forecast_project_id <- "efi_null"
 
-download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial-30min-targets.csv.gz",
-              "terrestrial-30min-targets.csv.gz")
+download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_30min-targets.csv.gz",
+              "terrestrial_30min-targets.csv.gz")
 
 terrestrial_targets <- read_csv("terrestrial-30min-targets.csv.gz", guess_max = 10000)
 

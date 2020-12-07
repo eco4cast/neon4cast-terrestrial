@@ -43,20 +43,23 @@ team_list <- list(list(individualName = list(givenName = "Quinn", surName = "Tho
 )
 
 #'Team name code
-team_name <- "pers_null_daily"
+team_name <- "EFInulldaily"
 
 #'Download target file from the server
-download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial-daily-targets.csv.gz",
-              "terrestrial-daily-targets.csv.gz")
+download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_daily-targets.csv.gz",
+              "terrestrial_daily-targets.csv.gz")
 
 #'Read in target file.  The guess_max is specified because there could be a lot of
 #'NA values at the beginning of the file
-terrestrial_targets <- read_csv("terrestrial-daily-targets.csv.gz", guess_max = 10000)
+terrestrial_targets <- read_csv("terrestrial_daily-targets.csv.gz", guess_max = 10000)
 
-download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial-30min-targets.csv.gz",
-              "terrestrial-30min-targets.csv.gz")
+terrestrial_targets <- terrestrial_targets %>% 
+  filter(time < as_date("2020-09-01"))
 
-terrestrial_targets_30min <- read_csv("terrestrial-30min-targets.csv.gz", guess_max = 10000)
+download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_30min-targets.csv.gz",
+              "terrestrial_30min-targets.csv.gz")
+
+terrestrial_targets_30min <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000)
 
 nee_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
 le_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
@@ -445,7 +448,7 @@ meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
 if(efi_server){
   source("../neon4cast-shared-utilities/publish.R")
   publish(code = "03_terrestrial_flux_daily_null.R",
-          data_in = "terrestrial-daily-targets.csv.gz",
+          data_in = "terrestrial_daily-targets.csv.gz",
           data_out = forecast_file,
           meta = meta_data_filename,
           prefix = "terrestrial/",

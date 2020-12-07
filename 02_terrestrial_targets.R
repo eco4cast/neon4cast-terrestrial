@@ -262,13 +262,13 @@ terrestrial_target_daily <- full_join(flux_target_daily, sm_daily_target)
 #  geom_point() +
 #  facet_wrap(~siteID)
 
-write_csv(terrestrial_target_30m, "terrestrial-30min-targets.csv.gz")
-write_csv(terrestrial_target_daily, "terrestrial-daily-targets.csv.gz")
+write_csv(terrestrial_target_30m, "terrestrial_30min-targets.csv.gz")
+write_csv(terrestrial_target_daily, "terrestrial_daily-targets.csv.gz")
 
 ## Publish the targets to EFI.  Assumes aws.s3 env vars are configured.
 source("../neon4cast-shared-utilities/publish.R")
 publish(code = c("02_terrestrial_targets.R"),
-        data_out = c("terrestrial-30min-targets.csv.gz","terrestrial-daily-targets.csv.gz"),
+        data_out = c("terrestrial_30min-targets.csv.gz","terrestrial_daily-targets.csv.gz"),
         prefix = "terrestrial/",
         bucket = "targets")
 
