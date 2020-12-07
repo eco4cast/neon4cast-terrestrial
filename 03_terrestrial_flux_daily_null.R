@@ -416,7 +416,7 @@ forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le, forecast_saved
 
 #'Save file as CSV in the
 #'[theme_name]-[year]-[month]-[date]-[team_name].csv
-forecast_file_name_base <- paste0("terrestrial-",as_date(start_forecast),"-",team_name)
+forecast_file_name_base <- paste0("terrestrial_daily-",as_date(start_forecast),"-",team_name)
 forecast_file <- paste0(forecast_file_name_base, ".csv.gz")
 write_csv(forecast_saved, forecast_file)
 
@@ -448,7 +448,7 @@ meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
 if(efi_server){
   source("../neon4cast-shared-utilities/publish.R")
   publish(code = "03_terrestrial_flux_daily_null.R",
-          data_in = "terrestrial_daily-targets.csv.gz",
+          data_in = c("terrestrial_daily-targets.csv.gz", "terrestrial_30min-targets.csv.gz"),
           data_out = forecast_file,
           meta = meta_data_filename,
           prefix = "terrestrial/",
