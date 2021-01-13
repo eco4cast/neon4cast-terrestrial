@@ -54,7 +54,7 @@ download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_dail
 terrestrial_targets <- read_csv("terrestrial_daily-targets.csv.gz", guess_max = 10000)
 
 terrestrial_targets <- terrestrial_targets %>% 
-  filter(time < as_date("2020-09-01"))
+  filter(time < as_date("2020-10-01"))
 
 download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_30min-targets.csv.gz",
               "terrestrial_30min-targets.csv.gz")

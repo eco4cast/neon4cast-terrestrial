@@ -6,7 +6,7 @@ generate_metadata <- function(forecast_file, metadata_yaml, forecast_issue_time,
   
   forecast <- readr::read_csv(forecast_file)
   
-  theme <- unlist(stringr::str_split(forecast_file, "-"))[1]
+  theme <- unlist(stringr::str_split(stringr::str_split(forecast_file, "-")[[1]][1], "_")[[1]][1])
   team_name <- unlist(stringr::str_split(unlist(stringr::str_split(forecast_file, "-"))[5], ".csv"))[1]
   
   if(theme == "terrestrial"){

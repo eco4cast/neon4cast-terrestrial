@@ -1,6 +1,7 @@
 print(paste0("Running Creating Terrestrial Targets at ", Sys.time()))
 
-#renv::restore()
+#devtools::install_deps()
+
 Sys.setenv("NEONSTORE_HOME" = "/efi_neon_challenge/neonstore")
 pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
@@ -35,9 +36,9 @@ co2_data <- flux_data %>%
   mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
                   le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
 
-#ggplot(co2_data, aes(x = time, y = nee)) +
-#  geom_point() +
-#  facet_wrap(~siteID)
+ggplot(co2_data, aes(x = time, y = nee)) +
+  geom_point() +
+  facet_wrap(~siteID)
 
 #Filter by qfFinal flow storage
 
@@ -113,9 +114,9 @@ flux_target_daily <- flux_target_30m %>%
   rename(time = date) %>% 
   mutate(nee = (nee * 12 / 1000000) * (60 * 60 * 24))
 
-#ggplot(flux_target_daily, aes(x = time, y = nee)) + 
-#  geom_point() +
-#  facet_wrap(~siteID)
+ggplot(flux_target_daily, aes(x = time, y = nee)) + 
+  geom_point() +
+  facet_wrap(~siteID)
 
 
 nee_intercept <- rep(NA, length(site_names))
@@ -150,9 +151,9 @@ for(s in 1:length(site_names)){
 }
 
 nee_sd_slopeN[which(nee_sd_slopeN > 0)] <- 0
-nee_sd_slopeP[which(nee_sd_slopeN < 0)] <- 0
+nee_sd_slopeP[which(nee_sd_slopeP < 0)] <- 0
 le_sd_slopeN[which(le_sd_slopeN > 0)] <- 0
-le_sd_slopeP[which(le_sd_slopeN < 0)] <- 0
+le_sd_slopeP[which(le_sd_slopeP < 0)] <- 0
 
 site_uncertainty <- tibble(siteID = site_names,
                            nee_sd_intercept = nee_intercept,
