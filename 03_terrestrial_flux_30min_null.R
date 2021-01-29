@@ -35,7 +35,7 @@ forecast_project_id <- "efi_null"
 download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_30min-targets.csv.gz",
               "terrestrial_30min-targets.csv.gz")
 
-terrestrial_targets <- read_csv("terrestrial-30min-targets.csv.gz", guess_max = 10000)
+terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000)
 
 site_names <- c("BART","KONZ","OSBS","SRER")
 
@@ -44,27 +44,22 @@ model{
 
   #### Priors
   for(t in 1:48){
-    x[t] ~ dnorm(x_ic[t], tau_init)
+    x[t] ~ dnorm(x_ic[t], tau_add)
+    tau_obs[t] <- pow(ifelse(x[t] >= 0, (sqrt(2) * (obs_intercept + x[t] * obs_slopeP)), (sqrt(2) * (obs_intercept + x[t] * obs_slopeN))), -2)
+    y[t] ~ dnorm(x[t], tau_obs[t])
   }
-  tau_add ~ dgamma(0.1,0.1)
-  tau_init ~ dgamma(0.1,0.1)
+  
+
+  sd_add  ~ dunif(0.000001, 100)
+  tau_add <- 1/ pow(sd_add, 2)
 
   #### Process Model
   for(t in 49:n){
     x[t]~dnorm(x[t-48], tau_add)
-    
     tau_obs[t] <- pow(ifelse(x[t] >= 0, (sqrt(2) * (obs_intercept + x[t] * obs_slopeP)), (sqrt(2) * (obs_intercept + x[t] * obs_slopeN))), -2)
-    #tau_obs <- 1 / pow(sd_obs, 2)
-    
-    x_obs[t] ~ dnorm(x[t],tau_obs[t])
+    y[t] ~ dnorm(x[t],tau_obs[t])
   }
 
-  #### Data Model
-  for(i in 1:nobs){
-    tau_obs_y[i] <- pow(ifelse(x[y_wgaps_index[i]] >= 0, (sqrt(2) * (obs_intercept + x[y_wgaps_index[i]] * obs_slopeP)), (sqrt(2) * (obs_intercept + x[y_wgaps_index[i]] * obs_slopeN))), -2)
-    #tau_obs_y <- 1 / pow(sd_obs_y, 2)
-    y[i] ~ dnorm(x[y_wgaps_index[i]],  tau_obs_y[i])
-  }
 
 }
 "
@@ -89,7 +84,7 @@ for(s in 1:length(site_names)){
   full_time <- tibble(time = seq(site_data_var$time[min_time], max(site_data_var$time) + days(35), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
-    filter(time >= max_time - months(3))
+    filter(time >= max_time - months(5))
   
   
   
@@ -107,9 +102,7 @@ for(s in 1:length(site_names)){
   
   init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
   
-  data <- list(y = y_nogaps,
-               y_wgaps_index = y_wgaps_index,
-               nobs = length(y_wgaps_index),
+  data <- list(y = y_wgaps,
                n = length(y_wgaps),
                x_ic = rep(0.0, 48),
                obs_intercept = site_data_var$nee_sd_intercept[1],
@@ -121,8 +114,7 @@ for(s in 1:length(site_names)){
   chain_seeds <- c(200,800,1400)
   init <- list()
   for(i in 1:nchain){
-    init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
-                      tau_init = 1/var(diff(y_nogaps)),
+    init[[i]] <- list(sd_add = sd(diff(y_nogaps)),
                       .RNG.name = "base::Wichmann-Hill",
                       .RNG.seed = chain_seeds[i],
                       x = init_x)
@@ -133,47 +125,48 @@ for(s in 1:length(site_names)){
                            inits = init,
                            n.chains = 3)
   
-  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add", "tau_init"), n.iter = 10000)
+  jags.out   <- coda.samples(model = j.model,variable.names = c("sd_add"), n.iter = 10000)
   
   m   <- coda.samples(model = j.model,
-                      variable.names = c("x","tau_add","x_obs","tau_init"),
+                      variable.names = c("sd_add","y"),
                       n.iter = 10000,
                       thin = 5)
   
   
   
   model_output <- m %>%
-    spread_draws(x_obs[day]) %>%
+    spread_draws(y[day]) %>%
     filter(.chain == 1) %>%
     rename(ensemble = .iteration) %>%
     mutate(time = site_data_var$time[day]) %>%
     ungroup() %>%
-    select(time, x_obs, ensemble)
+    select(time, y, ensemble)
   
   obs <- tibble(time = site_data_var$time,
                 obs = y_wgaps)
   
-  ggplot(obs, aes(x = time, y = obs)) + geom_point()
+  #ggplot(obs, aes(x = time, y = obs)) + geom_point()
   
   rm(m)
   gc()
   
   model_output %>% 
     group_by(time) %>% 
-    summarise(mean = mean(x_obs),
-              upper = quantile(x_obs, 0.975),
-              lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
+    filter(time > lubridate::as_date("2021-01-01")) %>% 
+    summarise(mean = mean(y),
+              upper = quantile(y, 0.975),
+              lower = quantile(y, 0.025),.groups = "drop") %>% 
     ggplot(aes(x = time, y = mean)) +
     geom_line() +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
-    geom_point(data = obs, aes(x = time, y = obs), color = "red") +
+    #geom_point(data = obs, aes(x = time, y = obs), color = "red") +
     labs(x = "Date", y = "nee", title = site_names[s])
   
   ggsave(paste0("nee_30min_",site_names[s],"_figure.pdf"), device = "pdf")
   
     forecast_saved_tmp <- model_output %>%
       filter(time > start_forecast) %>%
-      rename(nee = x_obs) %>% 
+      rename(nee = y) %>% 
       mutate(data_assimilation = 0,
              forecast = 1,
              obs_flag = 2,
@@ -217,7 +210,10 @@ for(s in 1:length(site_names)){
   full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
-    filter(time >= max_time - months(3))
+    filter(time >= max_time - months(5) & time < lubridate::as_date("2020-09-14"))
+    #filter(time >= max_time - months(5))
+  
+  ggplot(site_data_var, aes(x = time, y = le)) + geom_point()
   
   # NEE
   
@@ -233,21 +229,18 @@ for(s in 1:length(site_names)){
   
   init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
   
-  data <- list(y = y_nogaps,
-               y_wgaps_index = y_wgaps_index,
-               nobs = length(y_wgaps_index),
+  data <- list(y = y_wgaps,
                n = length(y_wgaps),
-               x_ic = rep(0.0, 48),
-               obs_intercept = site_data_var$le_sd_intercept,
-               obs_slopeP = le_sd_slopeP,
-               obs_slopeN = le_sd_slopeN)
+               x_ic = rep(100, 48),
+               obs_intercept = site_data_var$le_sd_intercept[1],
+               obs_slopeP = site_data_var$le_sd_slopeP[1],
+               obs_slopeN = site_data_var$le_sd_slopeN[1])
   
   nchain = 3
   chain_seeds <- c(200,800,1400)
   init <- list()
   for(i in 1:nchain){
-    init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
-                      tau_init = 1/var(diff(y_nogaps)),
+    init[[i]] <- list(sd_add = sd(diff(y_nogaps)),
                       .RNG.name = "base::Wichmann-Hill",
                       .RNG.seed = chain_seeds[i],
                       x = init_x)
@@ -258,20 +251,20 @@ for(s in 1:length(site_names)){
                            inits = init,
                            n.chains = 3)
   
-  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_obs"), n.iter = 10000)
+  jags.out   <- coda.samples(model = j.model,variable.names = c("sd_add"), n.iter = 10000)
   
   m   <- coda.samples(model = j.model,
-                      variable.names = c("x","tau_add","tau_obs", "x_obs"),
+                      variable.names = c("y","sd_add"),
                       n.iter = 10000,
                       thin = 5)
   
   model_output <- m %>%
-    spread_draws(x_obs[day]) %>%
+    spread_draws(y[day]) %>%
     filter(.chain == 1) %>%
     rename(ensemble = .iteration) %>%
-    mutate(time = full_time$time[day]) %>%
+    mutate(time = site_data_var$time[day]) %>%
     ungroup() %>%
-    select(time, x_obs, ensemble)
+    select(time, y, ensemble)
   
   rm(m)
   gc()
@@ -281,21 +274,22 @@ for(s in 1:length(site_names)){
   
   model_output %>% 
     group_by(time) %>% 
-    summarise(mean = mean(x_obs),
-              upper = quantile(x_obs, 0.975),
-              lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
+    filter(time >= max_time) %>% 
+    summarise(mean = mean(y),
+              upper = quantile(y, 0.975),
+              lower = quantile(y, 0.025),.groups = "drop") %>% 
     ggplot(aes(x = time, y = mean)) +
     geom_line() +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
-    geom_point(data = obs, aes(x = time, y = obs), color = "red") +
+    #geom_point(data = obs, aes(x = time, y = obs), color = "red") +
     labs(x = "Date", y = "le", title = site_names[s])
   
   ggsave(paste0("le_30min_",site_names[s],"_figure.pdf"), device = "pdf")
   
   if(s == 1){
     forecast_saved_le <- model_output %>%
-      filter(time > start_forecast) %>%
-      rename(le = x_obs) %>% 
+      filter(time >= start_forecast) %>%
+      rename(le = y) %>% 
       mutate(data_assimilation = 0,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
@@ -303,8 +297,8 @@ for(s in 1:length(site_names)){
   }else{
     
     forecast_saved_tmp <- model_output %>%
-      filter(time > start_forecast) %>%
-      rename(le = x_obs) %>% 
+      filter(time >= start_forecast) %>%
+      rename(le = y) %>% 
       mutate(data_assimilation = 0,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
@@ -317,30 +311,6 @@ for(s in 1:length(site_names)){
 ggsave("le_30min_figures.pdf", le_figures, device = "pdf")
 
 # Soil moisture
-
-RandomWalk = "
-model{
-
-  #### Priors
-  for(t in 1:12){
-    x[t] ~ dnorm(x_ic[t], tau_init)
-  }
-  tau_add ~ dgamma(0.1,0.1)
-  tau_init ~ dgamma(0.1,0.1)
-
-  #### Process Model
-  for(t in 13:n){
-    x[t]~dnorm(x[t-12], tau_add)
-    x_obs[t] ~ dnorm(x[t],tau_obs[t])
-  }
-
-  #### Data Model
-  for(i in 1:nobs){
-    y[i] ~ dnorm(x[y_wgaps_index[i]],  tau_obs[y_wgaps_index[i]])
-  }
-
-}
-"
 
 soil_moisture_figures <- list()
 
@@ -356,7 +326,7 @@ for(s in 1:length(site_names)){
   full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
-    filter(time >= max_time - months(3))
+    filter(time >= max_time - months(5))
   
   mean_sd <- mean(site_data_var$vswc_sd, na.rm = TRUE)
   
@@ -377,19 +347,16 @@ for(s in 1:length(site_names)){
   
   init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
   
-  data <- list(y = y_nogaps,
-               y_wgaps_index = y_wgaps_index,
-               nobs = length(y_wgaps_index),
+  data <- list(y = y_wgaps,
                n = length(y_wgaps),
                x_ic = rep(0.0, 48),
-               tau_obs = 1/(site_data_var$vswc_sd^2))
+               sd_obs = site_data_var$vswc_sd)
   
   nchain = 3
   chain_seeds <- c(200,800,1400)
   init <- list()
   for(i in 1:nchain){
-    init[[i]] <- list(tau_add = 1/var(diff(y_nogaps)),
-                      tau_init = 1/var(diff(y_nogaps)),
+    init[[i]] <- list(sd_add = sd(diff(y_nogaps)),
                       .RNG.name = "base::Wichmann-Hill",
                       .RNG.seed = chain_seeds[i],
                       x = init_x)
@@ -400,20 +367,20 @@ for(s in 1:length(site_names)){
                            inits = init,
                            n.chains = 3)
   
-  jags.out   <- coda.samples(model = j.model,variable.names = c("tau_add","tau_obs"), n.iter = 10000)
+  jags.out   <- coda.samples(model = j.model,variable.names = c("sd_add"), n.iter = 10000)
   
   m   <- coda.samples(model = j.model,
-                      variable.names = c("x","tau_add","tau_obs", "x_obs"),
+                      variable.names = c("y","sd_add"),
                       n.iter = 10000,
                       thin = 5)
   
   model_output <- m %>%
-    spread_draws(x_obs[day]) %>%
+    spread_draws(y[day]) %>%
     filter(.chain == 1) %>%
     rename(ensemble = .iteration) %>%
     mutate(time = full_time$time[day]) %>%
     ungroup() %>%
-    select(time, x_obs, ensemble)
+    select(time, y, ensemble)
   
   rm(m)
   gc()
@@ -423,9 +390,9 @@ for(s in 1:length(site_names)){
   
   model_output %>% 
     group_by(time) %>% 
-    summarise(mean = mean(x_obs),
-              upper = quantile(x_obs, 0.975),
-              lower = quantile(x_obs, 0.025),.groups = "drop") %>% 
+    summarise(mean = mean(y),
+              upper = quantile(y, 0.975),
+              lower = quantile(y, 0.025),.groups = "drop") %>% 
     ggplot(aes(x = time, y = mean)) +
     geom_line() +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
@@ -436,8 +403,8 @@ for(s in 1:length(site_names)){
   
   if(s == 1){
     forecast_saved_soil_moisture <- model_output %>%
-      filter(time > start_forecast) %>%
-      rename(le = x_obs) %>% 
+      filter(time >= start_forecast) %>%
+      rename(le = y) %>% 
       mutate(data_assimilation = 0,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%
@@ -445,8 +412,8 @@ for(s in 1:length(site_names)){
   }else{
     
     forecast_saved_tmp <- model_output %>%
-      filter(time > start_forecast) %>%
-      rename(vswc = x_obs) %>% 
+      filter(time >= start_forecast) %>%
+      rename(vswc = y) %>% 
       mutate(data_assimilation = 0,
              siteID = site_names[s]) %>%
       mutate(forecast_iteration_id = start_forecast) %>%

@@ -170,7 +170,7 @@ flux_target_30m <- left_join(flux_target_30m, site_uncertainty, by = "siteID")
 
 neon_store(table = "SWS_30_minute", n = 50) 
 neon_store(table = "sensor_positions", n = 50) 
-d2 <- neon_read(table = "sensor_positions") 
+#d2 <- neon_read(table = "sensor_positions") 
 sm30 <- neon_table(table = "SWS_30_minute")
 sensor_positions <- neon_table(table = "sensor_positions")
 
@@ -180,7 +180,8 @@ sensor_positions <- sensor_positions %>%
          verticalPosition = str_sub(HOR.VER, 5, 7),
          verticalPosition = as.numeric(verticalPosition),
          siteID = str_sub(file, 10, 13),
-         horizontalPosition = as.numeric(horizontalPosition)) %>% 
+         horizontalPosition = as.numeric(horizontalPosition),
+         zOffset = as.numeric(zOffset)) %>% 
   rename(sensorDepths = zOffset) %>% 
   filter(siteID %in% c("KONZ", "BART", "OSBS", "SRER")) %>% 
   select(sensorDepths, horizontalPosition, verticalPosition, siteID)
@@ -209,6 +210,8 @@ sm3_combined <- sm3_combined %>%
           depth = ifelse(sensorDepths > 0.20 & sensorDepths < 0.30, 0.25, depth)) %>% 
   filter(depth == 0.15) %>% 
   rename(time = startDateTime)
+
+
 
 
 earliest <- min(as_datetime(c(flux_target_30m$time)), na.rm = TRUE)

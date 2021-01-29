@@ -2,7 +2,7 @@ print(paste0("Running Creating Terrestrial Targets at ", Sys.time()))
 
 Sys.setenv("NEONSTORE_HOME" = "/efi_neon_challenge/neonstore")
 
-devtools::install_deps()
+remotes::install_deps()
 
 library(neonUtilities)
 library(neonstore)
