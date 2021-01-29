@@ -228,17 +228,11 @@ meta_data_filename <- generate_metadata(forecast_file =  ncfname,
                                         start_time = fx_time[1],
                                         stop_time = last(fx_time))
 ## Publish the forecast automatically. (EFI-only)
-Sys.setenv("AWS_DEFAULT_REGION" = "data")
-Sys.setenv("AWS_S3_ENDPOINT" = "ecoforecast.org")
-#source("../neon4cast-shared-utilities/publish.R")
-#publish(code = c("04_terrestrial_flux_30min_clim.R"),
-#        data_in = "terrestrial_30min-targets.csv.gz",
-#        data_out = ncfname,
-#        meta = meta_data_filename,
-#        prefix = "terrestrial/",
-#        bucket = "forecasts")
-aws.s3::put_object(object = ncfname, bucket = "submissions")
-aws.s3::put_object(object = meta_data_filename, bucket = "submissions")
+Sys.setenv("AWS_DEFAULT_REGION" = "data",
+           "AWS_S3_ENDPOINT" = "ecoforecast.org",
+           "AWS_SECRET_ACCESS_KEY" = "")
+aws.s3::put_object(file = ncfname, bucket = "submissions")
+aws.s3::put_object(file = meta_data_filename, bucket = "submissions")
 
 
 
