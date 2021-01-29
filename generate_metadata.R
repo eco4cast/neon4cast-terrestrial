@@ -1,10 +1,14 @@
 
 
-generate_metadata <- function(forecast_file, metadata_yaml, forecast_issue_time, forecast_iteration_id, forecast_file_name_base){
+generate_metadata <- function(forecast_file, metadata_yaml, forecast_issue_time, forecast_iteration_id, forecast_file_name_base,start_time=NULL,stop_time=NULL){
   
   metadata <- yaml::read_yaml(metadata_yaml)
   
-  forecast <- readr::read_csv(forecast_file)
+  if(tools::file_ext(forecast_file) == "csv"){
+    forecast <- readr::read_csv(forecast_file)
+  } else {
+    forecast <- NULL
+  }
   
   theme <- unlist(stringr::str_split(stringr::str_split(forecast_file, "-")[[1]][1], "_")[[1]][1])
   team_name <- unlist(stringr::str_split(unlist(stringr::str_split(forecast_file, "-"))[5], ".csv"))[1]
@@ -25,11 +29,13 @@ generate_metadata <- function(forecast_file, metadata_yaml, forecast_issue_time,
       "data_assimilation", "[flag]{whether time step assimilated data}", "dimensionless",         NA,           NA,          "integer"
     )
     
-    if(all.equal(names(forecast), attributes$attributeName) != TRUE){
-      message("Column names in file do not match required names for complete metadate")
-      message(paste0("File names are: ",names(forecast)))
-      message(paste0("Required names are: ",attributes$attributeName))
-      stop()
+    if(!is.null(forecast)){
+      if(all.equal(names(forecast), attributes$attributeName) != TRUE){
+        message("Column names in file do not match required names for complete metadate")
+        message(paste0("File names are: ",names(forecast)))
+        message(paste0("Required names are: ",attributes$attributeName))
+        stop()
+      }
     }
     
     #' use `EML` package to build the attribute list
@@ -60,10 +66,12 @@ generate_metadata <- function(forecast_file, metadata_yaml, forecast_issue_time,
   
   geographicCoverage <- fullgeographicCoverage[site_id_index]
   
+  if(is.null(start_time)) start_time = min(forecast$time)
+  if(is.null(stop_time)) stop_time = max(forecast$time)
   
   temporalCoverage <- list(rangeOfDates =
-                             list(beginDate = list(calendarDate = min(forecast$time)),
-                                  endDate = list(calendarDate = max(forecast$time))))
+                             list(beginDate = list(calendarDate = start_time),
+                                  endDate = list(calendarDate = stop_time)))
   #'Create the coverage EML
   coverage <- list(geographicCoverage = geographicCoverage,
                    temporalCoverage = temporalCoverage)
