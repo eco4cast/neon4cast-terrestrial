@@ -1,5 +1,4 @@
 Package: terrestrial_fluxes
 Version: 0.1.0
-Imports: tidyverse, neonstore, lubridate, neonUtilities, jsonlite
-         contentid, aws.s3, prov, EML, yaml, rjags, tidybayes, EFIstandards 
+Imports: tidyverse, neonstore, lubridate, neonUtilities, jsonlite,contentid, aws.s3, prov, EML, yaml, rjags, tidybayes, EFIstandards 
 Remotes: cboettig/prov, cboettig/contentid, eco4cast/EFIstandards
