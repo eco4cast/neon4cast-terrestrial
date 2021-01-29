@@ -224,7 +224,9 @@ meta_data_filename <- generate_metadata(forecast_file =  ncfname,
                                         metadata_yaml = "metadata_30min.yml",
                                         forecast_issue_time = as_date(with_tz(Sys.time(), "UTC")),
                                         forecast_iteration_id = start_forecast,
-                                        forecast_file_name_base = forecast_file_name_base)
+                                        forecast_file_name_base = strsplit(ncfname,".",fixed=TRUE)[[1]][1],
+                                        start_time = fx_time[1],
+                                        stop_time = last(fx_time))
 ## Publish the forecast automatically. (EFI-only)
 
 source("../neon4cast-shared-utilities/publish.R")
