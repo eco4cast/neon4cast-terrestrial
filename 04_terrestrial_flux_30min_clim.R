@@ -168,6 +168,8 @@ ensdim <- ncdim_def("ensemble",
                     vals = seq_len(ne),       
                     longname = 'ensemble member') 
 
+nchardim <- ncdim_def("nchar",units="",1:4,create_dimvar=FALSE)
+
 ## quick check that units are valid
 udunits2::ud.is.parseable(timedim$units)
 udunits2::ud.is.parseable(sitedim$units)
@@ -195,12 +197,18 @@ def_list[[3]] <- ncvar_def(name =  "vswc",
                            missval = fillvalue,
                            longname = 'volumetric soil water content',
                            prec="double")
+def_list[[4]] <- ncvar_def(name = "site_names",
+                           units="",
+                           dim = list(nchardim,sitedim),
+                           longname = "NEON site codes",
+                           prec="char")
 
 ncfname <- paste0("terrestrial-",as_date(start_forecast),"-",team_name,".nc")
 ncout <- nc_create(ncfname,def_list,force_v4=T)
 ncvar_put(ncout,def_list[[1]] , nee_fx)
 ncvar_put(ncout,def_list[[2]] , le_fx)
 ncvar_put(ncout,def_list[[3]] , vswc_fx)
+ncvar_put(ncout,def_list[[4]] , site_names)
 
 ## Global attributes (metadata)
 curr_time <- with_tz(Sys.time(), "UTC")
