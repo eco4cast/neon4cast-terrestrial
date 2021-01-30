@@ -158,15 +158,17 @@ timedim <- ncdim_def("time",   ## dimension name
                      longname = 'time')
 ## descriptive name
 
-sitedim <- ncdim_def("site", 
-                      units = "",
-                      vals = seq_along(site_names), 
-                      longname = 'NEON site') 
+sitedim <- ncdim_def("site",
+                     units="",
+                     vals=1:length(site_names),
+                     longname = "NEON siteID")
 
 ensdim <- ncdim_def("ensemble",             
                     units = "",
                     vals = seq_len(ne),       
                     longname = 'ensemble member') 
+
+dimnchar   <- ncdim_def("nchar",   "", 1:4, create_dimvar=FALSE )
 
 ## quick check that units are valid
 udunits2::ud.is.parseable(timedim$units)
@@ -196,11 +198,20 @@ def_list[[3]] <- ncvar_def(name =  "vswc",
                            longname = 'volumetric soil water content',
                            prec="double")
 
+def_list[[4]] <- ncvar_def(name = "siteID",
+                           units = "",
+                           dim = list(dimnchar, sitedim),
+                           longname = "NEON siteID",
+                           prec="char")
+
+
+
 ncfname <- paste0("terrestrial-",as_date(start_forecast),"-",team_name,".nc")
 ncout <- nc_create(ncfname,def_list,force_v4=T)
 ncvar_put(ncout,def_list[[1]] , nee_fx)
 ncvar_put(ncout,def_list[[2]] , le_fx)
 ncvar_put(ncout,def_list[[3]] , vswc_fx)
+ncvar_put(ncout,def_list[[4]], site_names) #Forecasted parameter values
 
 ## Global attributes (metadata)
 curr_time <- with_tz(Sys.time(), "UTC")
