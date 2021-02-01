@@ -4,7 +4,7 @@ generate_metadata <- function(forecast_file, metadata_yaml, forecast_issue_time,
   
   metadata <- yaml::read_yaml(metadata_yaml)
   
-  if(tools::file_ext(forecast_file) == "gz"){
+  if(tools::file_ext(forecast_file) %in% ("csv", "gz")){
     forecast <- readr::read_csv(forecast_file)
   } else {
     forecast <- NULL
