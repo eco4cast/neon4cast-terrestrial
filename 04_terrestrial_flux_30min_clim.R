@@ -140,6 +140,7 @@ for(s in 1:length(site_names)){
   if(length(y_nogaps) == 0){
     full = terrestrial_targets %>%
       filter(siteID == site_names[s])
+    if(sum(!is.na(full$vswc)) == 0) full = terrestrial_targets
     y_wgaps <- full$vswc
     y_nogaps <- y_wgaps[!is.na(y_wgaps)]
   }
