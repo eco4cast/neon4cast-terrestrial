@@ -56,6 +56,7 @@ start_forecast <- as.POSIXct(paste0(year(Sys.Date()),"/",
                                     month(Sys.Date()),"/1"),
                              tz="UTC")
 fx_time <- seq(start_forecast, start_forecast + days(35), by = "30 min")
+
 nee_fx = le_fx = vswc_fx = array(NA, dim=c(length(fx_time),length(site_names),ne)) ## dimensions: time, space, ensemble
 
 ## Forecast by site
@@ -69,6 +70,8 @@ for(s in 1:length(site_names)){
   
   min_time <- min(which(!is.na(site_data_var$nee)))
   # This is key here - I added 16 days on the end of the data for the forecast period
+  
+  full_time <- tibble(time = seq(site_data_var$time[min_time], max(site_data_var$time), by = "30 min"))
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
     filter(month(time) == month(max_time))  ## grab all historical data for this month
@@ -97,7 +100,7 @@ for(s in 1:length(site_names)){
     while(length(hindex) < 10){
       window = window + 0.5
       hindex = which(abs(htod - tod) < window) ## if no data at that time, look at adjacent times
-      print(window)
+      #print(window)
     }
     findex = which(ftod == tod) ## columns in fx to fill in
     for(j in findex){
@@ -159,10 +162,10 @@ timedim <- ncdim_def("time",   ## dimension name
                      longname = 'time')
 ## descriptive name
 
-sitedim <- ncdim_def("site", 
-                      units = "",
-                      vals = seq_along(site_names), 
-                      longname = 'NEON site') 
+sitedim <- ncdim_def("site",
+                     units="",
+                     vals=1:length(site_names),
+                     longname = "NEON siteID")
 
 ensdim <- ncdim_def("ensemble",             
                     units = "",

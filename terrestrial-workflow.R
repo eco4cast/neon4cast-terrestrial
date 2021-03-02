@@ -12,6 +12,7 @@ library(contentid)
 
 run_full_workflow <- TRUE
 generate_null_daily <- TRUE
+generate_null_30min <- TRUE
 
 # Terrestrial
 #DP4.00200.001 & DP1.00094.001
@@ -34,5 +35,11 @@ if(!is.null(new_data1) | !is.null(new_data2) | run_full_workflow){
     print(paste0("Running daily Null at ", Sys.time()))
     source("03_terrestrial_flux_daily_null.R")
     print(paste0("Completed daily Null at ", Sys.time()))
+  }
+  
+  if(generate_null_30min){
+    print(paste0("Running 30 min Null at ", Sys.time()))
+    source("04_terrestrial_flux_30min_clim.R")
+    print(paste0("Completed 30 min Null at ", Sys.time()))  
   }
 }
