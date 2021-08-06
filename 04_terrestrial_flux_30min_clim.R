@@ -143,6 +143,7 @@ for(s in 1:length(site_names)){
   if(length(y_nogaps) == 0){
     full = terrestrial_targets %>%
       filter(siteID == site_names[s])
+    if(sum(!is.na(full$vswc)) == 0) full = terrestrial_targets
     y_wgaps <- full$vswc
     y_nogaps <- y_wgaps[!is.na(y_wgaps)]
   }
@@ -171,7 +172,7 @@ ensdim <- ncdim_def("ensemble",
                     vals = seq_len(ne),       
                     longname = 'ensemble member') 
 
-dimnchar   <- ncdim_def("nchar",   "", 1:4, create_dimvar=FALSE )
+nchardim <- ncdim_def("nchar",units="",1:4,create_dimvar=FALSE)
 
 ## quick check that units are valid
 udunits2::ud.is.parseable(timedim$units)
@@ -200,21 +201,18 @@ def_list[[3]] <- ncvar_def(name =  "vswc",
                            missval = fillvalue,
                            longname = 'volumetric soil water content',
                            prec="double")
-
 def_list[[4]] <- ncvar_def(name = "siteID",
-                           units = "",
-                           dim = list(dimnchar, sitedim),
-                           longname = "NEON siteID",
+                           units="",
+                           dim = list(nchardim,sitedim),
+                           longname = "NEON site codes",
                            prec="char")
-
-
 
 ncfname <- paste0("terrestrial_30min-",as_date(start_forecast),"-",team_name,".nc")
 ncout <- nc_create(ncfname,def_list,force_v4=T)
 ncvar_put(ncout,def_list[[1]] , nee_fx)
 ncvar_put(ncout,def_list[[2]] , le_fx)
 ncvar_put(ncout,def_list[[3]] , vswc_fx)
-ncvar_put(ncout,def_list[[4]], site_names) #Forecasted parameter values
+ncvar_put(ncout,def_list[[4]] , site_names)
 
 ## Global attributes (metadata)
 curr_time <- with_tz(Sys.time(), "UTC")
