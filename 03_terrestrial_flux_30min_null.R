@@ -454,7 +454,7 @@ publish(code = c("03_terrestrial_flux_30min_null.R", pecan_flux_uncertainty),
         data_out = forecast_file,
         meta = meta_data_filename,
         prefix = "terrestrial/",
-        bucket = "forecasts")
-
+        bucket = "forecasts",
+        registries = "https://hash-archive.carlboettiger.info")
 
 

@@ -3,6 +3,7 @@ print(paste0("Running Creating Terrestrial Targets at ", Sys.time()))
 #devtools::install_deps()
 
 Sys.setenv("NEONSTORE_HOME" = "/efi_neon_challenge/neonstore")
+Sys.setenv("NEONSTORE_DB" = "/efi_neon_challenge/neonstore")
 pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
 source(pecan_flux_uncertainty)
@@ -20,11 +21,16 @@ site_names <- c("BART","KONZ","OSBS","SRER")
 
 # Terrestrial
 #DP4.00200.001 & DP1.00094.001
-neon_store(product = "DP4.00200.001") 
+#neon_store(product = "DP4.00200.001") 
 flux_data <- neon_table(table = "nsae-basic")
+
+flux_data %>% filter(as_datetime(timeBgn) == as_datetime("2020-12-01 00:00:00") & siteID == "SRER") %>% 
+  select(timeBgn, siteID, data.fluxCo2.nsae.flux)
 
 flux_data <- flux_data %>% 
   mutate(time = as_datetime(timeBgn))
+
+flux_data %>% filter(time == as_datetime("2020-12-01 00:00:00") & siteID == "SRER")
 
 co2_data <- flux_data %>% 
   filter(qfqm.fluxCo2.turb.qfFinl == 0 & data.fluxCo2.turb.flux > -50 & data.fluxCo2.turb.flux < 50 & data.fluxMome.turb.veloFric >= 0.2) %>% 
@@ -35,6 +41,10 @@ co2_data <- flux_data %>%
   rename(le = data.fluxH2o.turb.flux) %>% 
   mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
                   le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
+
+#co2_data %>% duplicates(index = time, key = siteID)
+
+co2_data %>% filter(time == as_datetime("2020-12-01 00:00:00") & siteID == "SRER")
 
 ggplot(co2_data, aes(x = time, y = nee)) +
   geom_point() +
@@ -82,6 +92,8 @@ full_time <- tibble(time = rep(full_time, 4),
 
 
 flux_target_30m <- left_join(full_time, co2_data, by = c("time", "siteID"))
+
+#flux_target_30m %>% duplicates(index = time, key = siteID)
 
 #ggplot(flux_target_30m, aes(x = time, y = nee)) +
 #  geom_point() +
@@ -166,13 +178,15 @@ site_uncertainty <- tibble(siteID = site_names,
 
 flux_target_30m <- left_join(flux_target_30m, site_uncertainty, by = "siteID")
 
+#flux_target_30m %>% duplicates(index = time, key = siteID)
+
 ########
 
-neon_store(table = "SWS_30_minute", n = 50) 
-neon_store(table = "sensor_positions", n = 50) 
+#neon_store(table = "SWS_30_minute", n = 50) 
+#neon_store(table = "sensor_positions", n = 50) 
 #d2 <- neon_read(table = "sensor_positions") 
 sm30 <- neon_table(table = "SWS_30_minute")
-sensor_positions <- neon_table(table = "sensor_positions")
+sensor_positions <- neon_read(table = "sensor_positions", product = "DP1.00094.001", keep_filename = TRUE)
 
 sensor_positions <- sensor_positions %>%  
   filter(str_detect(referenceName, "SOIL")) %>% 
@@ -188,11 +202,12 @@ sensor_positions <- sensor_positions %>%
 # 
 
 
-
 sm30 <- sm30 %>% 
   mutate(horizontalPosition = as.numeric(horizontalPosition),
          verticalPosition = as.numeric(verticalPosition))
 sm3_combined <- left_join(sm30, sensor_positions, by = c("siteID", "verticalPosition", "horizontalPosition"))
+
+
    
  
 sm3_combined <- sm3_combined %>% 
@@ -201,6 +216,13 @@ sm3_combined <- sm3_combined %>%
    filter(VSWCFinalQF == 0,
           VSWCMean > 0) %>% 
   mutate(sensorDepths = -sensorDepths)
+
+#sm3_combined %>% duplicates(index = time, key = siteID)
+
+sm30 %>% 
+  ggplot(aes(x = startDateTime, y = VSWCMean, color = factor(verticalPosition))) +
+  geom_point() +
+  facet_grid(siteID~horizontalPosition)
  
 sm3_combined <- sm3_combined %>% 
    filter(horizontalPosition == 3 & sensorDepths < 0.30) %>% 
@@ -212,7 +234,7 @@ sm3_combined <- sm3_combined %>%
   rename(time = startDateTime)
 
 
-
+#sm3_combined %>% duplicates(index = time, key = siteID)
 
 earliest <- min(as_datetime(c(flux_target_30m$time)), na.rm = TRUE)
 latest <- max(as_datetime(c(sm3_combined$time)), na.rm = TRUE)
@@ -262,9 +284,9 @@ ggplot(terrestrial_target_30m, aes(x = time, y = vswc)) +
 
 terrestrial_target_daily <- full_join(flux_target_daily, sm_daily_target)
 
-#ggplot(terrestrial_target_daily, aes(x = time, y = nee)) +
-#  geom_point() +
-#  facet_wrap(~siteID)
+ggplot(terrestrial_target_daily, aes(x = time, y = vswc)) +
+  geom_point() +
+  facet_wrap(~siteID)
 
 write_csv(terrestrial_target_30m, "terrestrial_30min-targets.csv.gz")
 write_csv(terrestrial_target_daily, "terrestrial_daily-targets.csv.gz")
@@ -274,5 +296,6 @@ source("../neon4cast-shared-utilities/publish.R")
 publish(code = c("02_terrestrial_targets.R"),
         data_out = c("terrestrial_30min-targets.csv.gz","terrestrial_daily-targets.csv.gz"),
         prefix = "terrestrial/",
-        bucket = "targets")
+        bucket = "targets",
+        registries = "https://hash-archive.carlboettiger.info")
 

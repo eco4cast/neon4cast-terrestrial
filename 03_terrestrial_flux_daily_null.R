@@ -314,7 +314,7 @@ for(s in 1:length(site_names)){
   
   site_data_var <- terrestrial_targets %>%
     filter(siteID == site_names[s], 
-           time >= lubridate::as_date("2020-01-01"))
+           time >= lubridate::as_date("2019-01-01"))
   
   max_time <- max(site_data_var$time) + days(1)
   
@@ -334,6 +334,11 @@ for(s in 1:length(site_names)){
   
   init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
   
+  if(is.na(y_nogaps[1])){
+    x_ic <- 0.3
+  }else{
+    x_ic <- y_nogaps[1]
+  }
   data <- list(y = y_wgaps,
                tau_obs = 1/(vswc_sd ^ 2),
                n = length(y_wgaps),
@@ -444,5 +449,6 @@ if(efi_server){
           data_out = forecast_file,
           meta = meta_data_filename,
           prefix = "terrestrial/",
-          bucket = "forecasts")
+          bucket = "forecasts",
+          registries = "https://hash-archive.carlboettiger.info")
 }
