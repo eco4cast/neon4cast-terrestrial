@@ -6,6 +6,8 @@ Sys.setenv("NEONSTORE_HOME" = "/efi_neon_challenge/neonstore")
 Sys.setenv("NEONSTORE_DB" = "/efi_neon_challenge/neonstore")
 pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
+dir <- "~/Documents/scripts/neon4cast-terrestrial"
+
 source(pecan_flux_uncertainty)
 
 #remotes::install_github("cboettig/neonstore")
@@ -20,17 +22,57 @@ library(contentid)
 site_names <- c("BART","KONZ","OSBS","SRER")
 
 # Terrestrial
+
+#Get the current unpublished flux data (5-day latency)
+
+files <- readr::read_csv("https://s3.data.neonscience.org/neon-sae-files/ods/sae_files_unpublished/sae_file_url_unpublished.csv")
+
+files <- files %>% 
+  filter(site %in% site_names) %>% 
+  mutate(file_name = basename(url))
+
+if(!dir.exists(file.path(dir,"current_month"))){
+dir.create(file.path(dir,"current_month"))
+}
+
+for(i in 1:nrow(files)){
+  destfile <- file.path(dir,"current_month",files$file_name[i])
+  if(!(file.exists(destfile) | file.exists(tools::file_path_sans_ext(destfile)))){
+    download.file(files$url[i], destfile = destfile)
+    R.utils::gunzip(destfile)
+  }
+}
+
+fn <- list.files(file.path(dir,"current_month"), full.names = TRUE)
+
+#remove files that are no longer in the unpublished s3 bucket
+
+for(i in 1:length(fn)){
+  if(!(paste0(basename(fn[i]),".gz") %in% files$file_name)){
+    unlink(fn[i])
+  }
+}
+
+flux_data_curr <- neonstore::neon_read(files = fn)
+
+#Get the published files on the portal
+
 #DP4.00200.001 & DP1.00094.001
 #neon_store(product = "DP4.00200.001") 
-flux_data <- neon_table(table = "nsae-basic")
+flux_data <- neon_table(table = "nsae-basic") %>% 
+  mutate(timeBgn = as_datetime(timeBgn),
+         timeEnd = as_datetime(timeEnd))
 
-flux_data %>% filter(as_datetime(timeBgn) == as_datetime("2020-12-01 00:00:00") & siteID == "SRER") %>% 
-  select(timeBgn, siteID, data.fluxCo2.nsae.flux)
+#remove any files unpublished data that has been published
+
+flux_data_curr <- flux_data_curr %>%  filter(timeBgn > max(flux_data$timeBgn))
+
+#Combined published and unpublished
+
+flux_data <- bind_rows(flux_data, flux_data_curr)
 
 flux_data <- flux_data %>% 
   mutate(time = as_datetime(timeBgn))
-
-flux_data %>% filter(time == as_datetime("2020-12-01 00:00:00") & siteID == "SRER")
 
 co2_data <- flux_data %>% 
   filter(qfqm.fluxCo2.turb.qfFinl == 0 & data.fluxCo2.turb.flux > -50 & data.fluxCo2.turb.flux < 50 & data.fluxMome.turb.veloFric >= 0.2) %>% 
@@ -41,10 +83,6 @@ co2_data <- flux_data %>%
   rename(le = data.fluxH2o.turb.flux) %>% 
   mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
                   le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
-
-#co2_data %>% duplicates(index = time, key = siteID)
-
-co2_data %>% filter(time == as_datetime("2020-12-01 00:00:00") & siteID == "SRER")
 
 ggplot(co2_data, aes(x = time, y = nee)) +
   geom_point() +
