@@ -7,6 +7,7 @@ Sys.setenv("NEONSTORE_DB" = "/efi_neon_challenge/neonstore")
 pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
 dir <- "~/Documents/scripts/neon4cast-terrestrial"
+use_5day_data <- FALSE
 
 source(pecan_flux_uncertainty)
 
@@ -23,38 +24,6 @@ site_names <- c("BART","KONZ","OSBS","SRER")
 
 # Terrestrial
 
-#Get the current unpublished flux data (5-day latency)
-
-files <- readr::read_csv("https://s3.data.neonscience.org/neon-sae-files/ods/sae_files_unpublished/sae_file_url_unpublished.csv")
-
-files <- files %>% 
-  filter(site %in% site_names) %>% 
-  mutate(file_name = basename(url))
-
-if(!dir.exists(file.path(dir,"current_month"))){
-dir.create(file.path(dir,"current_month"))
-}
-
-for(i in 1:nrow(files)){
-  destfile <- file.path(dir,"current_month",files$file_name[i])
-  if(!(file.exists(destfile) | file.exists(tools::file_path_sans_ext(destfile)))){
-    download.file(files$url[i], destfile = destfile)
-    R.utils::gunzip(destfile)
-  }
-}
-
-fn <- list.files(file.path(dir,"current_month"), full.names = TRUE)
-
-#remove files that are no longer in the unpublished s3 bucket
-
-for(i in 1:length(fn)){
-  if(!(paste0(basename(fn[i]),".gz") %in% files$file_name)){
-    unlink(fn[i])
-  }
-}
-
-flux_data_curr <- neonstore::neon_read(files = fn)
-
 #Get the published files on the portal
 
 #DP4.00200.001 & DP1.00094.001
@@ -63,13 +32,47 @@ flux_data <- neon_table(table = "nsae-basic") %>%
   mutate(timeBgn = as_datetime(timeBgn),
          timeEnd = as_datetime(timeEnd))
 
-#remove any files unpublished data that has been published
+#Get the current unpublished flux data (5-day latency)
 
-flux_data_curr <- flux_data_curr %>%  filter(timeBgn > max(flux_data$timeBgn))
-
-#Combined published and unpublished
-
-flux_data <- bind_rows(flux_data, flux_data_curr)
+if(use_5day_data){
+  files <- readr::read_csv("https://s3.data.neonscience.org/neon-sae-files/ods/sae_files_unpublished/sae_file_url_unpublished.csv")
+  
+  files <- files %>% 
+    filter(site %in% site_names) %>% 
+    mutate(file_name = basename(url))
+  
+  if(!dir.exists(file.path(dir,"current_month"))){
+    dir.create(file.path(dir,"current_month"))
+  }
+  
+  for(i in 1:nrow(files)){
+    destfile <- file.path(dir,"current_month",files$file_name[i])
+    if(!(file.exists(destfile) | file.exists(tools::file_path_sans_ext(destfile)))){
+      download.file(files$url[i], destfile = destfile)
+      R.utils::gunzip(destfile)
+    }
+  }
+  
+  fn <- list.files(file.path(dir,"current_month"), full.names = TRUE)
+  
+  #remove files that are no longer in the unpublished s3 bucket
+  
+  for(i in 1:length(fn)){
+    if(!(paste0(basename(fn[i]),".gz") %in% files$file_name)){
+      unlink(fn[i])
+    }
+  }
+  
+  flux_data_curr <- neonstore::neon_read(files = fn)
+  
+  #remove any files unpublished data that has been published
+  
+  flux_data_curr <- flux_data_curr %>%  filter(timeBgn > max(flux_data$timeBgn))
+  
+  #Combined published and unpublished
+  
+  flux_data <- bind_rows(flux_data, flux_data_curr)
+}
 
 flux_data <- flux_data %>% 
   mutate(time = as_datetime(timeBgn))
@@ -82,7 +85,7 @@ co2_data <- flux_data %>%
          nee = ifelse(siteID == "SRER" & year(time) < 2019, NA, nee)) %>% 
   rename(le = data.fluxH2o.turb.flux) %>% 
   mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
-                  le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
+         le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
 
 ggplot(co2_data, aes(x = time, y = nee)) +
   geom_point() +
@@ -190,8 +193,8 @@ for(s in 1:length(site_names)){
   nee_sd_slopeN[s] <- unc$slopeN
   
   unc <- flux.uncertainty(measurement = temp$le, 
-                                 QC = rep(0, length(temp$le)),
-                                 bin.num = 30)
+                          QC = rep(0, length(temp$le)),
+                          bin.num = 30)
   
   le_intercept[s] <- unc$intercept
   le_sd_slopeP[s] <- unc$slopeP
@@ -246,13 +249,13 @@ sm30 <- sm30 %>%
 sm3_combined <- left_join(sm30, sensor_positions, by = c("siteID", "verticalPosition", "horizontalPosition"))
 
 
-   
- 
+
+
 sm3_combined <- sm3_combined %>% 
-   select(startDateTime, endDateTime, VSWCMean, siteID, horizontalPosition, verticalPosition, VSWCFinalQF, sensorDepths, VSWCExpUncert) %>% 
-   mutate(VSWCMean = as.numeric(VSWCMean)) %>% 
-   filter(VSWCFinalQF == 0,
-          VSWCMean > 0) %>% 
+  select(startDateTime, endDateTime, VSWCMean, siteID, horizontalPosition, verticalPosition, VSWCFinalQF, sensorDepths, VSWCExpUncert) %>% 
+  mutate(VSWCMean = as.numeric(VSWCMean)) %>% 
+  filter(VSWCFinalQF == 0,
+         VSWCMean > 0) %>% 
   mutate(sensorDepths = -sensorDepths)
 
 #sm3_combined %>% duplicates(index = time, key = siteID)
@@ -261,13 +264,13 @@ sm30 %>%
   ggplot(aes(x = startDateTime, y = VSWCMean, color = factor(verticalPosition))) +
   geom_point() +
   facet_grid(siteID~horizontalPosition)
- 
+
 sm3_combined <- sm3_combined %>% 
-   filter(horizontalPosition == 3 & sensorDepths < 0.30) %>% 
+  filter(horizontalPosition == 3 & sensorDepths < 0.30) %>% 
   mutate(depth = NA,
-    depth = ifelse(sensorDepths <= 0.07, 0.05, depth),
-          depth = ifelse(sensorDepths > 0.07 & sensorDepths < 0.20, 0.15, depth),
-          depth = ifelse(sensorDepths > 0.20 & sensorDepths < 0.30, 0.25, depth)) %>% 
+         depth = ifelse(sensorDepths <= 0.07, 0.05, depth),
+         depth = ifelse(sensorDepths > 0.07 & sensorDepths < 0.20, 0.15, depth),
+         depth = ifelse(sensorDepths > 0.20 & sensorDepths < 0.30, 0.25, depth)) %>% 
   filter(depth == 0.15) %>% 
   rename(time = startDateTime)
 
@@ -302,18 +305,18 @@ sm30_target <- sm3_combined %>%
   rename(vswc = VSWCMean,
          vswc_sd = VSWCExpUncert) %>% 
   select(time, siteID, vswc, vswc_sd) 
-  
+
 
 sm_daily_target <- sm3_combined %>% 
   select(time, siteID, VSWCMean, VSWCExpUncert) %>% 
   mutate(time = lubridate::as_date(time)) %>% 
   group_by(time, siteID) %>% 
-    summarise(vswc = mean(VSWCMean, na.rm = TRUE),
-              count = sum(!is.na(VSWCMean)),
-              vswc_sd = mean(VSWCExpUncert)/sqrt(count)) %>% 
-    dplyr::mutate(vswc = ifelse(count > 23, vswc, NA)) %>% 
-    dplyr::select(time, siteID, vswc, vswc_sd)
-    
+  summarise(vswc = mean(VSWCMean, na.rm = TRUE),
+            count = sum(!is.na(VSWCMean)),
+            vswc_sd = mean(VSWCExpUncert)/sqrt(count)) %>% 
+  dplyr::mutate(vswc = ifelse(count > 23, vswc, NA)) %>% 
+  dplyr::select(time, siteID, vswc, vswc_sd)
+
 terrestrial_target_30m <- full_join(flux_target_30m, sm30_target)
 
 ggplot(terrestrial_target_30m, aes(x = time, y = vswc)) +
