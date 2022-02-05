@@ -30,10 +30,10 @@ team_list <- list(list(individualName = list(givenName = "Mike",  surName ="Diet
                        id = "https://orcid.org/0000-0003-1282-7825")
 )
 
-team_name <- "hist30min"
+team_name <- "climatology"
 forecast_project_id <- "efi_hist"
 
-download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_30min-targets.csv.gz",
+download.file("https://data.ecoforecast.org/targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
               "terrestrial_30min-targets.csv.gz")
 
 terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000, col_types = cols(
@@ -47,8 +47,6 @@ terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 
   le_sd_intercept = col_double(),
   le_sd_slopeP = col_double(),
   le_sd_slopeN = col_double(),
-  vswc = col_double(),
-  vswc_sd = col_double()
 ))
 
 site_names <- c("BART","KONZ","OSBS","SRER")
@@ -57,7 +55,7 @@ start_forecast <- as.POSIXct(paste0(year(Sys.Date()),"/",
                              tz="UTC")
 fx_time <- seq(start_forecast, start_forecast + days(35), by = "30 min")
 
-nee_fx = le_fx = vswc_fx = array(NA, dim=c(length(fx_time),length(site_names),ne)) ## dimensions: time, space, ensemble
+nee_fx = le_fx = array(NA, dim=c(length(fx_time),length(site_names),ne)) ## dimensions: time, space, ensemble
 
 ## Forecast by site
 for(s in 1:length(site_names)){
@@ -131,26 +129,6 @@ for(s in 1:length(site_names)){
       le_fx[j,s,] = y_nogaps[sample(hindex,ne,replace=TRUE)]
     }
   }
-  
-  
-  ############ Soil moisture #########
-  mean_sd <- mean(site_data_var$vswc_sd, na.rm = TRUE)
-  site_data_var <- site_data_var %>% 
-    mutate(vswc_sd = ifelse(!is.na(vswc_sd), vswc_sd, mean_sd))
-  y_wgaps <- site_data_var$vswc
-  #Remove gaps
-  y_nogaps <- y_wgaps[!is.na(y_wgaps)]
-  if(length(y_nogaps) == 0){
-    full = terrestrial_targets %>%
-      filter(siteID == site_names[s])
-    if(sum(!is.na(full$vswc)) == 0) full = terrestrial_targets
-    y_wgaps <- full$vswc
-    y_nogaps <- y_wgaps[!is.na(y_wgaps)]
-  }
-
-  for(i in seq_along(fx_time)){
-      vswc_fx[i,s,] = sample(y_nogaps,ne,replace=TRUE)  ## not concerned about diurnal cycle of vswc
-  }
 } ## end loop over sites
 
 ## Set dimensions
@@ -195,13 +173,7 @@ def_list[[2]] <- ncvar_def(name =  "le",
                            missval = fillvalue,
                            longname = 'latent heat flux',
                            prec="double")
-def_list[[3]] <- ncvar_def(name =  "vswc",
-                           units = "%",
-                           dim = list(timedim, sitedim, ensdim),
-                           missval = fillvalue,
-                           longname = 'volumetric soil water content',
-                           prec="double")
-def_list[[4]] <- ncvar_def(name = "siteID",
+def_list[[3]] <- ncvar_def(name = "siteID",
                            units="",
                            dim = list(nchardim,sitedim),
                            longname = "NEON site codes",
@@ -211,8 +183,7 @@ ncfname <- paste0("terrestrial_30min-",as_date(start_forecast),"-",team_name,".n
 ncout <- nc_create(ncfname,def_list,force_v4=T)
 ncvar_put(ncout,def_list[[1]] , nee_fx)
 ncvar_put(ncout,def_list[[2]] , le_fx)
-ncvar_put(ncout,def_list[[3]] , vswc_fx)
-ncvar_put(ncout,def_list[[4]] , site_names)
+ncvar_put(ncout,def_list[[3]] , site_names)
 
 ## Global attributes (metadata)
 curr_time <- with_tz(Sys.time(), "UTC")
@@ -224,7 +195,6 @@ ncatt_put(ncout,0,"forecast_iteration_id",as.character(curr_time),
           prec =  "text")
 
 nc_close(ncout)   ## make sure to close the file
-
 
 # Generate metadata
 forecast_issue_time <- as_date(curr_time)
@@ -239,12 +209,12 @@ meta_data_filename <- generate_metadata(forecast_file =  ncfname,
                                         forecast_file_name_base = strsplit(ncfname,".",fixed=TRUE)[[1]][1],
                                         start_time = fx_time[1],
                                         stop_time = last(fx_time))
-## Publish the forecast automatically. (EFI-only)
-Sys.setenv("AWS_DEFAULT_REGION" = "data",
-           "AWS_S3_ENDPOINT" = "ecoforecast.org",
-           "AWS_SECRET_ACCESS_KEY" = "")
-aws.s3::put_object(file = ncfname, bucket = "submissions")
-aws.s3::put_object(file = meta_data_filename, bucket = "submissions")
+neon4cast::submit(forecast_file = ncfname, 
+                  metadata = meta_data_filename, 
+                  ask = FALSE)
+
+unlink(ncfname)
+unlink(meta_data_filename)
 
 
 

@@ -24,10 +24,7 @@ library(jsonlite)
 set.seed(329)
 
 #'Generate plot to visualized forecast
-generate_plots <- TRUE
-#'Is the forecast run on the Ecological Forecasting Initiative Server?
-#'Setting to TRUE published the forecast on the server.
-efi_server <- TRUE
+generate_plots <- FALSE
 
 #' List of team members. Used in the generation of the metadata
 team_list <- list(list(individualName = list(givenName = "Quinn", surName = "Thomas"), 
@@ -43,10 +40,10 @@ team_list <- list(list(individualName = list(givenName = "Quinn", surName = "Tho
 )
 
 #'Team name code
-team_name <- "EFInulldaily"
+team_name <- "persistence"
 
 #'Download target file from the server
-download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_daily-targets.csv.gz",
+download.file("https://data.ecoforecast.org/targets/terrestrial_daily/terrestrial_daily-targets.csv.gz",
               "terrestrial_daily-targets.csv.gz")
 
 #'Read in target file.  The guess_max is specified because there could be a lot of
@@ -56,7 +53,7 @@ terrestrial_targets <- read_csv("terrestrial_daily-targets.csv.gz", guess_max = 
 terrestrial_targets <- terrestrial_targets #%>% 
   #filter(time < as_date("2020-12-01"))
 
-download.file("https://data.ecoforecast.org/targets/terrestrial/terrestrial_30min-targets.csv.gz",
+download.file("https://data.ecoforecast.org/targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
               "terrestrial_30min-targets.csv.gz")
 
 terrestrial_targets_30min <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000)
@@ -302,124 +299,18 @@ for(s in 1:length(site_names)){
   forecast_saved_le <- rbind(forecast_saved_le, forecast_saved_tmp)
 }
 
-#'## Soil moisture
-#' 
-#' See notes from the NEE section above
-#+ message = FALSE
-
-vswc_sd <-  rep(mean(terrestrial_targets$vswc_sd, na.rm = TRUE), length(terrestrial_targets$vswc_sd))
-forecast_saved_soil_moisture <- NULL
-soil_moisture_figures <- list()
-for(s in 1:length(site_names)){
-  
-  site_data_var <- terrestrial_targets %>%
-    filter(siteID == site_names[s], 
-           time >= lubridate::as_date("2019-01-01"))
-  
-  max_time <- max(site_data_var$time) + days(1)
-  
-  start_forecast <- max_time
-  full_time <- tibble(time = seq(min(site_data_var$time), max(site_data_var$time) + days(35), by = "1 day"))
-  
-  site_data_var <- left_join(full_time, site_data_var)
-  
-  y_wgaps <- site_data_var$vswc
-  time <- c(site_data_var$time)
-  
-  y_nogaps <- y_wgaps[!is.na(y_wgaps)]
-  
-  y_wgaps_index <- 1:length(y_wgaps)
-  
-  y_wgaps_index <- y_wgaps_index[!is.na(y_wgaps)]
-  
-  init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
-  
-  if(is.na(y_nogaps[1])){
-    x_ic <- 0.3
-  }else{
-    x_ic <- y_nogaps[1]
-  }
-  data <- list(y = y_wgaps,
-               tau_obs = 1/(vswc_sd ^ 2),
-               n = length(y_wgaps),
-               x_ic = y_nogaps[1])
-  
-  nchain = 3
-  chain_seeds <- c(200,800,1400)
-  init <- list()
-  for(i in 1:nchain){
-    init[[i]] <- list(sd_add = sd(diff(y_nogaps)),
-                      .RNG.name = "base::Wichmann-Hill",
-                      .RNG.seed = chain_seeds[i],
-                      x = init_x)
-  }
-  
-  j.model   <- jags.model (file = textConnection(RandomWalk),
-                           data = data,
-                           inits = init,
-                           n.chains = 3)
-  
-  jags.out   <- coda.samples(model = j.model,variable.names = c("sd_add"), n.iter = 10000)
-  
-  m   <- coda.samples(model = j.model,
-                      variable.names = c("y","sd_add"),
-                      n.iter = 10000,
-                      thin = 5)
-  
-  model_output <- m %>%
-    spread_draws(y[day]) %>%
-    filter(.chain == 1) %>%
-    rename(ensemble = .iteration) %>%
-    mutate(time = full_time$time[day]) %>%
-    ungroup() %>%
-    select(time, y, ensemble)
-  
-  if(generate_plots){
-    obs <- tibble(time = full_time$time,
-                  obs = y_wgaps)
-    
-    model_output %>% 
-      group_by(time) %>% 
-      summarise(mean = mean(y),
-                upper = quantile(y, 0.975),
-                lower = quantile(y, 0.025),.groups = "drop") %>% 
-      ggplot(aes(x = time, y = mean)) +
-      geom_line() +
-      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = "lightblue", fill = "lightblue") +
-      geom_point(data = obs, aes(x = time, y = obs), color = "red") +
-      labs(x = "Date", y = "vswc", title = site_names[s])
-    
-    ggsave(paste0("sm_daily_",site_names[s],"_figure.pdf"), device = "pdf")
-  }
-  
-  forecast_saved_tmp <- model_output %>%
-    filter(time >= start_forecast) %>%
-    rename(vswc = y) %>% 
-    mutate(data_assimilation = 0,
-           forecast = 1,
-           obs_flag = 2,
-           siteID = site_names[s]) %>%
-    mutate(forecast_iteration_id = start_forecast) %>%
-    mutate(forecast_project_id = team_name)
-  
-  forecast_saved_soil_moisture <- rbind(forecast_saved_soil_moisture, forecast_saved_tmp)
-}
 
 #'Combined the NEE and LE forecasts together and re-order column
-forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le, forecast_saved_soil_moisture$vswc) %>% 
+forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>% 
   rename(le = `forecast_saved_le$le`,
          vswc = `forecast_saved_soil_moisture$vswc`) %>% 
-  select(time, ensemble, siteID, obs_flag, nee, le, vswc, forecast, data_assimilation)
+  select(time, ensemble, siteID, obs_flag, nee, le, forecast, data_assimilation)
 
 #'Save file as CSV in the
 #'[theme_name]-[year]-[month]-[date]-[team_name].csv
 forecast_file_name_base <- paste0("terrestrial_daily-",as_date(start_forecast),"-",team_name)
 forecast_file <- paste0(forecast_file_name_base, ".csv.gz")
 write_csv(forecast_saved, forecast_file)
-
-ggplot(forecast_saved, aes(x = time, y = vswc, group = ensemble)) + 
-  geom_line() +
-  facet_wrap(~siteID)
 
 #'#Generate metadata
 
@@ -441,14 +332,9 @@ meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
                                         forecast_file_name_base = forecast_file_name_base)
 
 
-#'Publish the forecast automatically.  Run only on EFI Challenge server
-if(efi_server){
-  source("../neon4cast-shared-utilities/publish.R")
-  publish(code = "03_terrestrial_flux_daily_null.R",
-          data_in = c("terrestrial_daily-targets.csv.gz", "terrestrial_30min-targets.csv.gz"),
-          data_out = forecast_file,
-          meta = meta_data_filename,
-          prefix = "terrestrial/",
-          bucket = "forecasts",
-          registries = "https://hash-archive.carlboettiger.info")
-}
+neon4cast::submit(forecast_file = forecast_file, 
+                  metadata = meta_data_filename, 
+                  ask = FALSE)
+
+unlink(forecast_file)
+unlink(meta_data_filename)
