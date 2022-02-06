@@ -49,7 +49,7 @@ terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 
   le_sd_slopeN = col_double(),
 ))
 
-sites <- read_csv("Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
 site_names <- sites$field_site_id
 
 start_forecast <- as.POSIXct(paste0(year(Sys.Date()),"/",

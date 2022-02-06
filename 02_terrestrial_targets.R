@@ -15,7 +15,7 @@ library(tidyverse)
 library(lubridate)
 library(contentid)
 
-sites <- read_csv("Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
 
 
 site_names <- sites$field_site_id

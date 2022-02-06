@@ -62,7 +62,8 @@ nee_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 100000
 le_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
 
 #'Focal sites
-sites <- read_csv("Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+
 site_names <- sites$field_site_id
 
 #'Generic random walk state-space model is JAGS format.  We use this model for 
