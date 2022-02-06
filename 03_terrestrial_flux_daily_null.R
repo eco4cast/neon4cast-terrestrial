@@ -62,7 +62,8 @@ nee_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 100000
 le_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
 
 #'Focal sites
-site_names <- c("BART","KONZ","OSBS","SRER")
+sites <- read_csv("Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+site_names <- sites$field_site_id
 
 #'Generic random walk state-space model is JAGS format.  We use this model for 
 #'both the NEE and LE null forecasts
@@ -302,8 +303,7 @@ for(s in 1:length(site_names)){
 
 #'Combined the NEE and LE forecasts together and re-order column
 forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>% 
-  rename(le = `forecast_saved_le$le`,
-         vswc = `forecast_saved_soil_moisture$vswc`) %>% 
+  rename(le = `forecast_saved_le$le`) %>% 
   select(time, ensemble, siteID, obs_flag, nee, le, forecast, data_assimilation)
 
 #'Save file as CSV in the

@@ -49,7 +49,9 @@ terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 
   le_sd_slopeN = col_double(),
 ))
 
-site_names <- c("BART","KONZ","OSBS","SRER")
+sites <- read_csv("Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+site_names <- sites$field_site_id
+
 start_forecast <- as.POSIXct(paste0(year(Sys.Date()),"/",
                                     month(Sys.Date()),"/1"),
                              tz="UTC")

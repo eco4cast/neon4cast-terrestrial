@@ -15,7 +15,10 @@ library(tidyverse)
 library(lubridate)
 library(contentid)
 
-site_names <- c("BART","KONZ","OSBS","SRER")
+sites <- read_csv("Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+
+
+site_names <- sites$field_site_id
 
 # Terrestrial
 
