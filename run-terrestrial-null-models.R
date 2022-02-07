@@ -14,6 +14,6 @@ if(generate_null_daily){
 
 if(generate_null_30min){
   print(paste0("Running 30 min persistence at ", Sys.time()))
-  source("04_terrestrial_flux_30min_clim.R")
+  source("03_terrestrial_flux_30min_clim.R")
   print(paste0("Completed 30 min Null at ", Sys.time()))  
 }
