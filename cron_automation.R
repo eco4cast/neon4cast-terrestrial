@@ -12,5 +12,5 @@ cmd <- cronR::cron_rscript(rscript = file.path(home_dir, terrestrial_repo,"run-t
                            rscript_log = file.path(log_dir, "terrestrial.log"),
                            log_append = FALSE,
                            workdir = file.path(home_dir, terrestrial_repo),
-                           trailing_arg = paste0("curl -fsS -m 10 --retry 5 -o /dev/null ", ))
+                           trailing_arg = paste0("curl -fsS -m 10 --retry 5 -o /dev/null ", health_checks_url))
 cronR::cron_add(command = cmd, frequency = 'daily', at = "11AM", id = 'terrestrial-null-models')
