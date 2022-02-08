@@ -97,6 +97,8 @@ nee_figures <- list()
 #' Loop through sites
 for(s in 1:length(site_names)){
   
+  message(paste0("NEE: ", site_names[s]))
+  
   # Select site
   site_data_var <- terrestrial_targets %>%
     filter(siteID == site_names[s], 
@@ -213,6 +215,8 @@ forecast_saved_le <- NULL
 le_figures <- list()
 for(s in 1:length(site_names)){
   
+  message(paste0("LE: ", site_names[s]))
+  
   site_data_var <- terrestrial_targets %>%
     filter(siteID == site_names[s], 
            time >= lubridate::as_date("2020-01-01"))
@@ -326,15 +330,15 @@ forecast_model_id <- team_name
 
 source("generate_metadata.R")
 
-meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
-                                        metadata_yaml = "metadata.yml",
-                                        forecast_issue_time = as_date(with_tz(Sys.time(), "UTC")),
-                                        forecast_iteration_id = start_forecast,
-                                        forecast_file_name_base = forecast_file_name_base)
+#meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
+#                                        metadata_yaml = "metadata.yml",
+#                                        forecast_issue_time = as_date(with_tz(Sys.time(), "UTC")),
+#                                        forecast_iteration_id = start_forecast,
+#                                        forecast_file_name_base = forecast_file_name_base)
 
 
 neon4cast::submit(forecast_file = forecast_file, 
-                  metadata = meta_data_filename, 
+                  metadata = NULL, 
                   ask = FALSE)
 
 unlink(forecast_file)
