@@ -26,7 +26,7 @@ site_names <- sites$field_site_id
 
 #DP4.00200.001 & DP1.00094.001
 #neon_store(product = "DP4.00200.001") 
-flux_data <- neon_table(table = "nsae-basic") %>% 
+flux_data <- neon_table(table = "nsae-basic", site = site_names) %>% 
   mutate(timeBgn = as_datetime(timeBgn),
          timeEnd = as_datetime(timeEnd))
 
@@ -85,7 +85,8 @@ co2_data <- flux_data %>%
   mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
          le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
 
-ggplot(co2_data, aes(x = time, y = nee)) +
+co2_data %>% 
+ggplot(aes(x = time, y = nee)) +
   geom_point() +
   facet_wrap(~siteID)
 
