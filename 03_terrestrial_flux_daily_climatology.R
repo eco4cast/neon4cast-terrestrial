@@ -90,7 +90,7 @@ nee <- forecast %>%
   rename(mean = nee_clim,
          sd = nee_sd) %>% 
   group_by(siteID) %>% 
-  mutate(mean = imputeTS::na_interpolation(mean, rule = 2, maxgap = 3),
+  mutate(mean = imputeTS::na_interpolation(x = mean, maxgap = 3),
          sd = median(sd, na.rm = TRUE)) %>%
   pivot_longer(c("mean", "sd"),names_to = "statistic", values_to = "nee")
 
@@ -99,7 +99,7 @@ le <- forecast %>%
   rename(mean = le_clim,
          sd = le_sd) %>% 
   group_by(siteID) %>% 
-  mutate(mean = imputeTS::na_interpolation(mean, rule = 2, maxgap = 3),
+  mutate(mean = imputeTS::na_interpolation(mean, maxgap = 3),
          sd = median(sd, na.rm = TRUE)) %>%
   pivot_longer(c("mean", "sd"),names_to = "statistic", values_to = "le")
 
@@ -110,14 +110,16 @@ combined <- full_join(nee, le) %>%
   arrange(siteID, time, statistic) 
 
 combined %>% 
-  select(time, le ,statistic, siteID) %>% 
-  pivot_wider(names_from = statistic, values_from = le) %>% 
+  select(time, nee ,statistic, siteID) %>% 
+  pivot_wider(names_from = statistic, values_from = nee) %>% 
   ggplot(aes(x = time)) +
   geom_ribbon(aes(ymin=mean - sd*1.96, ymax=mean + sd*1.96), alpha = 0.1) + 
   geom_point(aes(y = mean)) +
   facet_wrap(~siteID)
 
 forecast_file <- paste("terrestrial_daily", min(combined$time), "climatology.csv.gz", sep = "-")
+
+write_csv(combined, forecast_file)
 
 neon4cast::submit(forecast_file = forecast_file, 
                   metadata = NULL, 

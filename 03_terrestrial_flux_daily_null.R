@@ -328,7 +328,7 @@ forecast_iteration_id <- start_forecast
 #' The team name is the `forecast_model_id`
 forecast_model_id <- team_name
 
-source("generate_metadata.R")
+#source("generate_metadata.R")
 
 #meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
 #                                        metadata_yaml = "metadata.yml",
@@ -342,4 +342,4 @@ neon4cast::submit(forecast_file = forecast_file,
                   ask = FALSE)
 
 unlink(forecast_file)
-unlink(meta_data_filename)
+#unlink(meta_data_filename)
