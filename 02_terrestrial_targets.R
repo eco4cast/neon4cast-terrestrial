@@ -61,6 +61,8 @@ if(use_5day_data){
     }
   }
   
+  message(paste0("reading in ", length(fn), " non-NEON portal files"))
+  
   flux_data_curr <- neonstore::neon_read(files = fn)
   
   #remove any files unpublished data that has been published
@@ -94,16 +96,17 @@ earliest <- min(as_datetime(c(co2_data$time)), na.rm = TRUE)
 latest <- max(as_datetime(c(co2_data$time)), na.rm = TRUE)
 
 
-full_time <- seq(min(c(co2_data$time), na.rm = TRUE), 
+full_time_vector <- seq(min(c(co2_data$time), na.rm = TRUE), 
                  max(c(co2_data$time), na.rm = TRUE), 
                  by = "30 min")
 
-full_time <- tibble(time = rep(full_time, 4),
-                    siteID = c(rep("BART", length(full_time)),
-                               rep("KONZ", length(full_time)),
-                               rep("OSBS", length(full_time)),
-                               rep("SRER", length(full_time))))
-
+full_time <- NULL
+for(i in 1:length(site_names)){
+  df <- tibble(time = full_time_vector,
+               siteID = rep(site_names[i], length(full_time_vector)))
+  full_time <- bind_rows(full_time, df)
+  
+}
 
 flux_target_30m <- left_join(full_time, co2_data, by = c("time", "siteID"))
 
