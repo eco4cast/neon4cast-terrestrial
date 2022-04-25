@@ -4,7 +4,7 @@ Sys.setenv("NEONSTORE_HOME" = "/efi_neon_challenge/neonstore")
 Sys.setenv("NEONSTORE_DB" = "/efi_neon_challenge/neonstore")
 pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
 
-dir <- "~/Documents/scripts/neon4cast-terrestrial"
+non_store_dir <- "/efi_neon_challenge/local/neon_flux_data"
 use_5day_data <- TRUE
 
 source(pecan_flux_uncertainty)
@@ -17,8 +17,14 @@ library(contentid)
 
 sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
 
-
 site_names <- sites$field_site_id
+
+print("Downloading: DP4.00200.001")
+neonstore::neon_download(product = "DP4.00200.001", site = site_names, type = "basic")
+neon_store(product = "DP4.00200.001") 
+#print("Downloading: DP1.00094.001")
+#x <- neonstore::neon_download(product = "DP1.00094.001", site = site_names, type = "basic")
+#neon_store(table = "SWS_30_minute", n = 50) 
 
 # Terrestrial
 
@@ -33,25 +39,25 @@ flux_data <- neon_table(table = "nsae-basic", site = site_names) %>%
 #Get the current unpublished flux data (5-day latency)
 
 if(use_5day_data){
-  files <- readr::read_csv("https://s3.data.neonscience.org/neon-sae-files/ods/sae_files_unpublished/sae_file_url_unpublished.csv")
-  
+  files <- readr::read_csv("https://storage.googleapis.com/neon-sae-files/ods/sae_files_unpublished/sae_file_url_unpublished.csv")
+
   files <- files %>% 
     filter(site %in% site_names) %>% 
     mutate(file_name = basename(url))
   
-  if(!dir.exists(file.path(dir,"current_month"))){
-    dir.create(file.path(dir,"current_month"))
+  if(!dir.exists(file.path(non_store_dir,"current_month"))){
+    dir.create(file.path(non_store_dir,"current_month"), recursive = TRUE)
   }
   
   for(i in 1:nrow(files)){
-    destfile <- file.path(dir,"current_month",files$file_name[i])
+    destfile <- file.path(non_store_dir,"current_month",files$file_name[i])
     if(!(file.exists(destfile) | file.exists(tools::file_path_sans_ext(destfile)))){
       download.file(files$url[i], destfile = destfile)
       R.utils::gunzip(destfile)
     }
   }
   
-  fn <- list.files(file.path(dir,"current_month"), full.names = TRUE)
+  fn <- list.files(file.path(non_store_dir,"current_month"), full.names = TRUE)
   
   #remove files that are no longer in the unpublished s3 bucket
   
@@ -319,14 +325,14 @@ write_csv(flux_target_30m, "terrestrial_30min-targets.csv.gz")
 write_csv(flux_target_daily, "terrestrial_daily-targets.csv.gz")
 
 ## Publish the targets to EFI.  Assumes aws.s3 env vars are configured.
-source("../neon4cast-shared-utilities/publish.R")
+source("../challenge-ci/R/publish.R")
 publish(code = c("02_terrestrial_targets.R"),
         data_out = c("terrestrial_30min-targets.csv.gz"),
         prefix = "terrestrial_30min/",
         bucket = "targets",
         registries = "https://hash-archive.carlboettiger.info")
 
-source("../neon4cast-shared-utilities/publish.R")
+source("../challenge-ci/R/publish.R")
 publish(code = c("02_terrestrial_targets.R"),
         data_out = c("terrestrial_daily-targets.csv.gz"),
         prefix = "terrestrial_daily/",
