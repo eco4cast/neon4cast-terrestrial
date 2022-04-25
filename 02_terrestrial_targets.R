@@ -40,7 +40,8 @@ flux_data <- neon_table(table = "nsae-basic", site = site_names) %>%
 
 if(use_5day_data){
   files <- readr::read_csv("https://storage.googleapis.com/neon-sae-files/ods/sae_files_unpublished/sae_file_url_unpublished.csv")
-
+ #Convert old S3 links to GCS
+  files$url <- base::gsub("https://s3.data.neonscience.org", "https://storage.googleapis.com", files$url)
   files <- files %>% 
     filter(site %in% site_names) %>% 
     mutate(file_name = basename(url))
