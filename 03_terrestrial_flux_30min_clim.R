@@ -22,7 +22,7 @@ library(jsonlite)
 
 set.seed(42)
 
-ne = 1000 ## number of ensemble members
+ne = 200 ## number of ensemble members
 
 team_list <- list(list(individualName = list(givenName = "Mike",  surName ="Dietze"),
                        id = "https://orcid.org/0000-0002-2324-2518"),
@@ -52,9 +52,7 @@ terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 
 sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
 site_names <- sites$field_site_id
 
-start_forecast <- as.POSIXct(paste0(year(Sys.Date()),"/",
-                                    month(Sys.Date()),"/1"),
-                             tz="UTC")
+start_forecast <- as.POSIXct(Sys.Date(),tz="UTC")
 fx_time <- seq(start_forecast, start_forecast + days(35), by = "30 min")
 
 nee_fx = le_fx = array(NA, dim=c(length(fx_time),length(site_names),ne)) ## dimensions: time, space, ensemble

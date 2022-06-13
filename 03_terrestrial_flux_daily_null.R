@@ -313,7 +313,7 @@ forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>%
 
 #'Save file as CSV in the
 #'[theme_name]-[year]-[month]-[date]-[team_name].csv
-forecast_file_name_base <- paste0("terrestrial_daily-",as_date(start_forecast),"-",team_name)
+forecast_file_name_base <- paste0("terrestrial_daily-",as_date(Sys.Date()),"-",team_name)
 forecast_file <- paste0(forecast_file_name_base, ".csv.gz")
 write_csv(forecast_saved, forecast_file)
 
