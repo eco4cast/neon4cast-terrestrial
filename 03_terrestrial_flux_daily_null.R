@@ -100,7 +100,8 @@ for(s in 1:length(site_names)){
   
   # Select site
   site_data_var <- terrestrial_targets %>%
-    filter(siteID == site_names[s], 
+    filter(variable == "nee") |> 
+    filter(site_id == site_names[s], 
            time >= lubridate::as_date("2020-01-01")) 
   
   # Find the last day in the observed data and add one day for the start of the 
@@ -114,7 +115,7 @@ for(s in 1:length(site_names)){
   site_data_var <- left_join(full_time, site_data_var)
   
   #observed NEE: Full time series with gaps
-  y_wgaps <- site_data_var$nee
+  y_wgaps <- site_data_var$observed
   time <- c(site_data_var$time)
   #observed NEE: time series without gaps
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
@@ -191,16 +192,14 @@ for(s in 1:length(site_names)){
   #Filter only the forecasted dates and add columns for required variable
   forecast_saved_tmp <- model_output %>%
     filter(time >= start_forecast) %>%
-    rename(nee = y) %>% 
-    mutate(data_assimilation = 0,
-           forecast = 1,
-           obs_flag = 2,
-           siteID = site_names[s]) %>%
+    rename(predicted = y) %>% 
+    mutate(variable = "nee",
+           site_id = site_names[s]) %>%
     mutate(forecast_iteration_id = start_forecast) %>%
     mutate(forecast_project_id = team_name)
   
   # Combined with the previous sites
-  forecast_saved_nee <- rbind(forecast_saved_nee, forecast_saved_tmp)
+  forecast_saved_nee <- bind_rows(forecast_saved_nee, forecast_saved_tmp)
   
 }
 
@@ -217,7 +216,8 @@ for(s in 1:length(site_names)){
   message(paste0("LE: ", site_names[s]))
   
   site_data_var <- terrestrial_targets %>%
-    filter(siteID == site_names[s], 
+    filter(variable == "le")
+    filter(site_id == site_names[s], 
            time >= lubridate::as_date("2020-01-01"))
   
   max_time <- max(site_data_var$time) + days(1)
@@ -227,7 +227,7 @@ for(s in 1:length(site_names)){
   
   site_data_var <- left_join(full_time, site_data_var)
   
-  y_wgaps <- site_data_var$le
+  y_wgaps <- site_data_var$observed
   time <- c(site_data_var$time)
   
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
@@ -293,22 +293,19 @@ for(s in 1:length(site_names)){
   
   forecast_saved_tmp <- model_output %>%
     filter(time >= start_forecast) %>%
-    rename(le = y) %>% 
-    mutate(data_assimilation = 0,
-           forecast = 1,
-           obs_flag = 2,
-           siteID = site_names[s]) %>%
+    rename(predicted = y) %>% 
+    mutate(variable = "le",
+           site_id = site_names[s]) %>%
     mutate(forecast_iteration_id = start_forecast) %>%
     mutate(forecast_project_id = team_name)
   
-  forecast_saved_le <- rbind(forecast_saved_le, forecast_saved_tmp)
+  forecast_saved_le <- bind_rows(forecast_saved_le, forecast_saved_tmp)
 }
 
 
 #'Combined the NEE and LE forecasts together and re-order column
-forecast_saved <- cbind(forecast_saved_nee, forecast_saved_le$le) %>% 
-  rename(le = `forecast_saved_le$le`) %>% 
-  select(time, ensemble, siteID, obs_flag, nee, le, forecast, data_assimilation)
+forecast_saved <- bind_rows(forecast_saved_nee, forecast_saved_le) %>% 
+  select(time, site_id, ensemble, variable, predicted)
 
 #'Save file as CSV in the
 #'[theme_name]-[year]-[month]-[date]-[team_name].csv

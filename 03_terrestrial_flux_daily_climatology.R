@@ -46,14 +46,11 @@ site_names <- sites$field_site_id
 
 target_clim <- targets %>%  
   mutate(doy = yday(time)) %>% 
-  group_by(doy, siteID) %>% 
-  summarise(nee_clim = mean(nee, na.rm = TRUE),
-            le_clim = mean(le, na.rm = TRUE),
-            nee_sd = sd(nee, na.rm = TRUE),
-            le_sd = sd(le, na.rm = TRUE),
+  group_by(doy, site_id, variable) %>% 
+  summarise(clim_mean = mean(observed, na.rm = TRUE),
+            clim_sd = sd(observed, na.rm = TRUE),
             .groups = "drop") %>% 
-  mutate(nee_clim = ifelse(is.nan(nee_clim), NA, nee_clim),
-         le_clim = ifelse(is.nan(le_clim), NA, le_clim))
+  mutate(clim_mean = ifelse(is.nan(clim_mean), NA, clim_mean))
 
 #curr_month <- month(Sys.Date())
 curr_month <- month(Sys.Date())
@@ -75,46 +72,36 @@ forecast <- target_clim %>%
                                as_date((doy-1), origin = paste(year(Sys.Date())+1, "01", "01", sep = "-")),
                                as_date((doy-1), origin = paste(year(Sys.Date()), "01", "01", sep = "-")))))
 
-subseted_site_names <- unique(forecast$siteID)
+subseted_site_names <- unique(forecast$site_id)
 site_vector <- NULL
 for(i in 1:length(subseted_site_names)){
   site_vector <- c(site_vector, rep(subseted_site_names[i], length(forecast_dates)))
 }
 
 forecast_tibble <- tibble(time = rep(forecast_dates, length(subseted_site_names)),
-                          siteID = site_vector)
+                          site_id = site_vector)
 
-nee <- forecast %>% 
-  select(time, siteID, nee_clim, nee_sd) %>% 
-  rename(mean = nee_clim,
-         sd = nee_sd) %>% 
-  group_by(siteID) %>% 
+combined <- forecast %>% 
+  select(time, site_id, variable, clim_mean, clim_sd) %>% 
+  rename(mean = clim_mean,
+         sd = clim_sd) %>% 
+  group_by(site_id, variable) %>% 
   mutate(mean = imputeTS::na_interpolation(x = mean, maxgap = 3),
          sd = median(sd, na.rm = TRUE)) %>%
-  pivot_longer(c("mean", "sd"),names_to = "statistic", values_to = "nee")
+  pivot_longer(c("mean", "sd"),names_to = "parameter", values_to = "predicted") |> 
+  mutate(family = "norm") |> 
+  select(time, site_id, variable, family, parameter, predicted)
 
-le <- forecast %>% 
-  select(time, siteID, le_clim, le_sd) %>% 
-  rename(mean = le_clim,
-         sd = le_sd) %>% 
-  group_by(siteID) %>% 
-  mutate(mean = imputeTS::na_interpolation(mean, maxgap = 3),
-         sd = median(sd, na.rm = TRUE)) %>%
-  pivot_longer(c("mean", "sd"),names_to = "statistic", values_to = "le")
 
-combined <- full_join(nee, le) %>%  
-  mutate(data_assimilation = 0,
-         forecast = 1) %>% 
-  select(time, siteID, statistic, forecast, nee, le) %>% 
-  arrange(siteID, time, statistic) 
+
 
 combined %>% 
-  select(time, nee ,statistic, siteID) %>% 
-  pivot_wider(names_from = statistic, values_from = nee) %>% 
+  filter(variable == "nee") |> 
+  pivot_wider(names_from = parameter, values_from = predicted) %>% 
   ggplot(aes(x = time)) +
   geom_ribbon(aes(ymin=mean - sd*1.96, ymax=mean + sd*1.96), alpha = 0.1) + 
   geom_point(aes(y = mean)) +
-  facet_wrap(~siteID)
+  facet_wrap(~site_id)
 
 forecast_file <- paste("terrestrial_daily", min(combined$time), "climatology.csv.gz", sep = "-")
 

@@ -104,10 +104,10 @@ co2_data <- flux_data %>%
   pivot_longer(-c("time","site_id"), names_to = "variable", values_to = "observed")
 
 co2_data %>% 
-filter(varible == "nee")
-ggplot(aes(x = time, y = nee)) +
+filter(variable == "nee") |> 
+ggplot(aes(x = time, y = observed)) +
   geom_point() +
-  facet_wrap(~siteID)
+  facet_wrap(~site_id)
 
 earliest <- min(as_datetime(c(co2_data$time)), na.rm = TRUE)
 latest <- max(as_datetime(c(co2_data$time)), na.rm = TRUE)
@@ -119,59 +119,40 @@ full_time_vector <- seq(min(c(co2_data$time), na.rm = TRUE),
 
 full_time <- NULL
 for(i in 1:length(site_names)){
-  df <- tibble(time = full_time_vector,
-               site_id = rep(site_names[i], length(full_time_vector)))
-  full_time <- bind_rows(full_time, df)
+  df_nee <- tibble(time = full_time_vector,
+               site_id = rep(site_names[i], length(full_time_vector)),
+               variable = "nee")
+  df_le <- tibble(time = full_time_vector,
+               site_id = rep(site_names[i], length(full_time_vector)),
+               variable = "le")
+  full_time <- bind_rows(full_time, df_nee, df_le)
   
 }
 
-flux_target_30m <- left_join(full_time, co2_data, by = c("time", "site_id"))
+flux_target_30m <- left_join(full_time, co2_data, by = c("time", "site_id", "variable"))
 
-#flux_target_30m %>% 
-#  mutate(pass = ifelse(is.na(nee), 0, 1)) %>% 
-#  group_by(siteID) %>% 
-#  summarize(all = n(),
-#            pass = sum(pass)) %>% 
-#  mutate(prop = pass/all)
-
-valid_dates_nee <- flux_target_30m %>% 
-  filter(variable == "nee") |> 
+valid_dates <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
   filter(!is.na(observed)) %>%
-  group_by(date, site_id) %>% 
-  summarise(count = n()) %>% 
-  filter(count >= 24)
-
-#valid_dates_nee %>% 
-#  group_by(siteID) %>% 
-#  count() %>% 
-#  mutate(all = length(unique(as_date(flux_target_30m$time))),
-#         prop = n/all)
-
-valid_dates_le <- flux_target_30m %>% 
-  filter(variable == "le") |> 
-  mutate(date = as_date(time)) %>% 
-  filter(!is.na(observed)) %>%
-  group_by(date, site_id) %>% 
-  summarise(count = n()) %>% 
-  filter(count >= 24)
+  group_by(date, site_id, variable) %>% 
+  summarise(count = n(), .groups = "drop")
 
 flux_target_daily <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
   group_by(date, site_id, variable) %>% 
   summarize(observed = mean(observed, na.rm = TRUE)) |> 
-  mutate(observed = ifelse(date %in% valid_dates_nee$date & variable == "nee", observed, NA),
-         observed = ifelse(date %in% valid_dates_le$date & variable == "le", observed, NA),
+  left_join(valid_dates, by = c("date","site_id", "variable")) |> 
+  mutate(observed = ifelse(count > 24, observed, NA),
          observed = ifelse(is.nan(observed), NA, observed)) %>% 
   rename(time = date) %>% 
+  select(-count) |> 
   mutate(observed = ifelse(variable == "nee", (observed * 12 / 1000000) * (60 * 60 * 24), observed))
 
 flux_target_daily %>% 
   filter(year(time) > 2021) %>% 
   ggplot(aes(x = time, y = observed)) + 
   geom_point() +
-  facet_wrap(varable~site_id, scale = "free")
-
+  facet_grid(variable~site_id, scale = "free")
 
 # Adding observational uncertainity to the 30 minute fluxes
 

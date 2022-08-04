@@ -35,18 +35,7 @@ forecast_project_id <- "efi_hist"
 download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
               "terrestrial_30min-targets.csv.gz")
 
-terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000, col_types = cols(
-  time = col_datetime(format = ""),
-  siteID = col_character(),
-  nee = col_double(),
-  le = col_double(),
-  nee_sd_intercept = col_double(),
-  nee_sd_slopeP = col_double(),
-  nee_sd_slopeN = col_double(),
-  le_sd_intercept = col_double(),
-  le_sd_slopeP = col_double(),
-  le_sd_slopeN = col_double(),
-))
+terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000, show_col_types = FALSE)
 
 sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
 site_names <- sites$field_site_id
@@ -60,15 +49,21 @@ nee_fx = le_fx = array(NA, dim=c(length(fx_time),length(site_names),ne)) ## dime
 for(s in 1:length(site_names)){
   
   site_data_var <- terrestrial_targets %>%
-    filter(siteID == site_names[s])
+    filter(site_id == site_names[s])
   
   max_time <- max(site_data_var$time) + days(1)
   
   
-  min_time <- min(which(!is.na(site_data_var$nee)))
+  min_time <- min(which(!is.na(site_data_var$observed)))
   # This is key here - I added 16 days on the end of the data for the forecast period
   
-  full_time <- tibble(time = seq(site_data_var$time[min_time], max(site_data_var$time), by = "30 min"))
+  full_time1 <- tibble(time = seq(site_data_var$time[min_time], max(site_data_var$time), by = "30 min"),
+                      variable = "nee")
+  
+  full_time2 = tibble(time = seq(site_data_var$time[min_time], max(site_data_var$time), by = "30 min"),
+         variable = "le")
+  
+  full_time <- bind_rows(full_time1, full_time2)
   
   site_data_var <- left_join(full_time, site_data_var) %>% 
     filter(month(time) == month(max_time))  ## grab all historical data for this month
@@ -76,8 +71,8 @@ for(s in 1:length(site_names)){
   ############ NEE  #############
   
   #Full time series with gaps
-  y_wgaps <- site_data_var$nee
-  time <- c(site_data_var$time)
+  y_wgaps <- site_data_var$observed[which(site_data_var$variable == "nee")]
+  time <- c(site_data_var$time[which(site_data_var$variable == "nee")])
   #Remove gaps
   t_nogaps <- time[!is.na(y_wgaps)]
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
@@ -108,7 +103,8 @@ for(s in 1:length(site_names)){
   ############ Latent heat ############
   
   #Full time series with gaps
-  y_wgaps <- site_data_var$le
+  y_wgaps <- site_data_var$observed[which(site_data_var$variable == "le")]
+  time <- c(site_data_var$time[which(site_data_var$variable == "le")])
   #Remove gaps
   t_nogaps <- time[!is.na(y_wgaps)]
   y_nogaps <- y_wgaps[!is.na(y_wgaps)]
@@ -172,7 +168,7 @@ def_list[[2]] <- ncvar_def(name =  "le",
                            missval = fillvalue,
                            longname = 'latent heat flux',
                            prec="double")
-def_list[[3]] <- ncvar_def(name = "siteID",
+def_list[[3]] <- ncvar_def(name = "site_id",
                            units="",
                            dim = list(nchardim,sitedim),
                            longname = "NEON site codes",
