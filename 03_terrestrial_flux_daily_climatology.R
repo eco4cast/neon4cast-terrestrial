@@ -12,7 +12,6 @@ print(paste0("Running Creating Daily Terrestrial Forecasts at ", Sys.time()))
 library(tidyverse)
 library(lubridate)
 library(aws.s3)
-library(prov)
 library(EFIstandards)
 library(EML)
 library(jsonlite)
@@ -39,7 +38,7 @@ team_name <- "climatology"
 
 #'Read in target file.  The guess_max is specified because there could be a lot of
 #'NA values at the beginning of the file
-targets <- read_csv("https://data.ecoforecast.org/targets/terrestrial_daily/terrestrial_daily-targets.csv.gz", guess_max = 10000)
+targets <- read_csv("https://data.ecoforecast.org/neon4cast-targets/terrestrial_daily/terrestrial_daily-targets.csv.gz", guess_max = 10000)
 
 sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
 

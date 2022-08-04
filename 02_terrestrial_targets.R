@@ -1,10 +1,12 @@
 print(paste0("Running Creating Terrestrial Targets at ", Sys.time()))
 
-Sys.setenv("NEONSTORE_HOME" = "/efi_neon_challenge/neonstore")
-Sys.setenv("NEONSTORE_DB" = "/efi_neon_challenge/neonstore")
+Sys.setenv("NEONSTORE_HOME" = "/home/rstudio/data/neonstore")
+#Sys.setenv("NEONSTORE_DB" = "/home/rstudio/data/neonstore")
+#Sys.setenv("NEONSTORE_DB")
 pecan_flux_uncertainty <- "../pecan/modules/uncertainty/R/flux_uncertainty.R"
+readRenviron("~/.Renviron") # compatible with littler
 
-non_store_dir <- "/efi_neon_challenge/local/neon_flux_data"
+non_store_dir <- "/home/rstudio/data/neon_flux_data"
 use_5day_data <- TRUE
 
 source(pecan_flux_uncertainty)
@@ -19,9 +21,9 @@ sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestr
 
 site_names <- sites$field_site_id
 
-print("Downloading: DP4.00200.001")
-neonstore::neon_download(product = "DP4.00200.001", site = site_names, type = "basic")
-neon_store(product = "DP4.00200.001") 
+#print("Downloading: DP4.00200.001")
+#neonstore::neon_download(product = "DP4.00200.001", site = site_names, type = "basic")
+#neon_store(product = "DP4.00200.001") 
 #print("Downloading: DP1.00094.001")
 #x <- neonstore::neon_download(product = "DP1.00094.001", site = site_names, type = "basic")
 #neon_store(table = "SWS_30_minute", n = 50) 
@@ -44,7 +46,8 @@ if(use_5day_data){
   files$url <- base::gsub("https://s3.data.neonscience.org", "https://storage.googleapis.com", files$url)
   files <- files %>% 
     filter(site %in% site_names) %>% 
-    mutate(file_name = basename(url))
+    mutate(file_name = basename(url)) |> 
+    filter(date > max(lubridate::as_date(flux_data$timeBgn)))
   
   if(!dir.exists(file.path(non_store_dir,"current_month"))){
     dir.create(file.path(non_store_dir,"current_month"), recursive = TRUE)
@@ -70,11 +73,15 @@ if(use_5day_data){
   
   message(paste0("reading in ", length(fn), " non-NEON portal files"))
   
-  flux_data_curr <- neonstore::neon_read(files = fn)
+  flux_data_curr <- purrr::map_dfr(1:length(fn), function(i, fn){
+    message(paste0("reading file ",fn[i]))
+    neonstore::neon_read(files = fn[i])
+  },
+  fn = fn)
+  
+  #flux_data_curr <- neonstore::neon_read(files = fn)
   
   #remove any files unpublished data that has been published
-  
-  flux_data_curr <- flux_data_curr %>%  filter(timeBgn > max(flux_data$timeBgn))
   
   #Combined published and unpublished
   
@@ -117,14 +124,12 @@ for(i in 1:length(site_names)){
 
 flux_target_30m <- left_join(full_time, co2_data, by = c("time", "siteID"))
 
-flux_target_30m %>% 
-  mutate(pass = ifelse(is.na(nee), 0, 1)) %>% 
-  group_by(siteID) %>% 
-  summarize(all = n(),
-            pass = sum(pass)) %>% 
-  mutate(prop = pass/all)
-
-length(unique(as_date(flux_target_30m$time)))
+#flux_target_30m %>% 
+#  mutate(pass = ifelse(is.na(nee), 0, 1)) %>% 
+#  group_by(siteID) %>% 
+#  summarize(all = n(),
+#            pass = sum(pass)) %>% 
+#  mutate(prop = pass/all)
 
 valid_dates_nee <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
@@ -133,11 +138,11 @@ valid_dates_nee <- flux_target_30m %>%
   summarise(count = n()) %>% 
   filter(count >= 24)
 
-valid_dates_nee %>% 
-  group_by(siteID) %>% 
-  count() %>% 
-  mutate(all = length(unique(as_date(flux_target_30m$time))),
-         prop = n/all)
+#valid_dates_nee %>% 
+#  group_by(siteID) %>% 
+#  count() %>% 
+#  mutate(all = length(unique(as_date(flux_target_30m$time))),
+#         prop = n/all)
 
 valid_dates_le <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
@@ -330,14 +335,14 @@ source("../challenge-ci/R/publish.R")
 publish(code = c("02_terrestrial_targets.R"),
         data_out = c("terrestrial_30min-targets.csv.gz"),
         prefix = "terrestrial_30min/",
-        bucket = "targets",
+        bucket = "neon4cast-targets",
         registries = "https://hash-archive.carlboettiger.info")
 
 source("../challenge-ci/R/publish.R")
 publish(code = c("02_terrestrial_targets.R"),
         data_out = c("terrestrial_daily-targets.csv.gz"),
         prefix = "terrestrial_daily/",
-        bucket = "targets",
+        bucket = "neon4cast-targets",
         registries = "https://hash-archive.carlboettiger.info")
 
 unlink("terrestrial_30min-targets.csv.gz")

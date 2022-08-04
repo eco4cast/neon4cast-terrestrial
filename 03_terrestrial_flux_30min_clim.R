@@ -15,7 +15,6 @@ library(rjags)
 library(tidybayes)
 library(modelr)
 library(aws.s3)
-library(prov)
 library(EFIstandards)
 library(EML)
 library(jsonlite)
@@ -33,7 +32,7 @@ team_list <- list(list(individualName = list(givenName = "Mike",  surName ="Diet
 team_name <- "climatology"
 forecast_project_id <- "efi_hist"
 
-download.file("https://data.ecoforecast.org/targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
+download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
               "terrestrial_30min-targets.csv.gz")
 
 terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000, col_types = cols(

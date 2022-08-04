@@ -15,7 +15,6 @@ library(rjags)
 library(tidybayes)
 library(modelr)
 library(aws.s3)
-library(prov)
 library(EFIstandards)
 library(EML)
 library(jsonlite)
@@ -43,7 +42,7 @@ team_list <- list(list(individualName = list(givenName = "Quinn", surName = "Tho
 team_name <- "persistence"
 
 #'Download target file from the server
-download.file("https://data.ecoforecast.org/targets/terrestrial_daily/terrestrial_daily-targets.csv.gz",
+download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_daily/terrestrial_daily-targets.csv.gz",
               "terrestrial_daily-targets.csv.gz")
 
 #'Read in target file.  The guess_max is specified because there could be a lot of

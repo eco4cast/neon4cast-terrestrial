@@ -448,7 +448,7 @@ meta_data_filename <- generate_metadata(forecast_file =  forecast_file,
                                         forecast_file_name_base = forecast_file_name_base)
 ## Publish the forecast automatically. (EFI-only)
 
-source("../neon4cast-shared-utilities/publish.R")
+source("../challenge-ci/publish.R")
 publish(code = c("03_terrestrial_flux_30min_null.R", pecan_flux_uncertainty),
         data_in = "terrestrial-30min-targets.csv.gz",
         data_out = forecast_file,
