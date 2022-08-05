@@ -52,13 +52,15 @@ terrestrial_targets <- read_csv("terrestrial_daily-targets.csv.gz", guess_max = 
 terrestrial_targets <- terrestrial_targets #%>% 
   #filter(time < as_date("2020-12-01"))
 
-download.file("https://data.ecoforecast.org/targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
+download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
               "terrestrial_30min-targets.csv.gz")
 
 terrestrial_targets_30min <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000)
 
-nee_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
-le_sd <- (sqrt(2) * terrestrial_targets_30min$nee_sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)
+variable_sd <- terrestrial_targets_30min |> 
+  mutate(sd = (sqrt(2) * sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)) |> 
+  group_by(site_id, variable) |> 
+  summarize(sd = mean(sd, na.rm = TRUE), .groups = "drop")
 
 #'Focal sites
 sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
@@ -81,7 +83,7 @@ model{
   for(t in 2:n){
     x[t]~dnorm(x[t-1],tau_add)
     #Data Model
-    y[t] ~ dnorm(x[t],tau_obs[t])
+    y[t] ~ dnorm(x[t],tau_obs)
   }
 
 }
@@ -97,6 +99,12 @@ nee_figures <- list()
 for(s in 1:length(site_names)){
   
   message(paste0("NEE: ", site_names[s]))
+  
+  site_sd <- variable_sd |> 
+    filter(site_id == site_names[s],
+           variable == "nee") |> 
+    pull(sd)
+    
   
   # Select site
   site_data_var <- terrestrial_targets %>%
@@ -129,7 +137,7 @@ for(s in 1:length(site_names)){
   
   #Create a list of the data for use in JAGS.  Include vector lengths (nobs, n)
   data <- list(y = y_wgaps,
-               tau_obs = 1/(nee_sd ^ 2),
+               tau_obs = 1/(site_sd ^ 2),
                n = length(y_wgaps),
                x_ic = 0.0)
   
@@ -216,9 +224,15 @@ for(s in 1:length(site_names)){
   message(paste0("LE: ", site_names[s]))
   
   site_data_var <- terrestrial_targets %>%
-    filter(variable == "le")
+    filter(variable == "le") |> 
     filter(site_id == site_names[s], 
            time >= lubridate::as_date("2020-01-01"))
+    
+    site_sd <- variable_sd |> 
+      filter(site_id == site_names[s],
+             variable == "le") |> 
+      pull(sd)
+    
   
   max_time <- max(site_data_var$time) + days(1)
   
@@ -239,7 +253,7 @@ for(s in 1:length(site_names)){
   init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
   
   data <- list(y = y_wgaps,
-               tau_obs = 1/(le_sd ^ 2),
+               tau_obs = 1/(site_sd ^ 2),
                n = length(y_wgaps),
                x_ic = 0.0)
   
