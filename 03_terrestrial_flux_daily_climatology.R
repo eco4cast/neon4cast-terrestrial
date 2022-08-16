@@ -38,7 +38,7 @@ team_name <- "climatology"
 
 #'Read in target file.  The guess_max is specified because there could be a lot of
 #'NA values at the beginning of the file
-targets <- read_csv("https://data.ecoforecast.org/neon4cast-targets/terrestrial_daily/terrestrial_daily-targets.csv.gz", guess_max = 10000)
+targets <- readr::read_csv("https://data.ecoforecast.org/neon4cast-targets/terrestrial_daily/terrestrial_daily-targets.csv.gz", guess_max = 10000)
 
 sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
 
@@ -78,19 +78,29 @@ for(i in 1:length(subseted_site_names)){
   site_vector <- c(site_vector, rep(subseted_site_names[i], length(forecast_dates)))
 }
 
-forecast_tibble <- tibble(time = rep(forecast_dates, length(subseted_site_names)),
-                          site_id = site_vector)
+forecast_tibble1 <- tibble(time = rep(forecast_dates, length(subseted_site_names)),
+                          site_id = site_vector,
+                          variable = "nee")
+
+forecast_tibble2 <- tibble(time = rep(forecast_dates, length(subseted_site_names)),
+                          site_id = site_vector,
+                          variable = "nee")
+
+forecast_tibble <- bind_rows(forecast_tibble1, forecast_tibble2)
+
+foreast <- right_join(forecast, forecast_tibble)
 
 combined <- forecast %>% 
   select(time, site_id, variable, clim_mean, clim_sd) %>% 
   rename(mean = clim_mean,
          sd = clim_sd) %>% 
   group_by(site_id, variable) %>% 
-  mutate(mean = imputeTS::na_interpolation(x = mean, maxgap = 3),
+  mutate(mean = imputeTS::na_interpolation(x = mean),
          sd = median(sd, na.rm = TRUE)) %>%
   pivot_longer(c("mean", "sd"),names_to = "parameter", values_to = "predicted") |> 
-  mutate(family = "norm") |> 
-  select(time, site_id, variable, family, parameter, predicted)
+  mutate(family = "normal") |> 
+  mutate(start_time = min(combined$time) - lubridate::days(1))
+  select(time, start_time, site_id, variable, family, parameter, predicted)
 
 
 

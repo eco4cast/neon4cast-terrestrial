@@ -37,8 +37,9 @@ download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_30min/
 
 terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000, show_col_types = FALSE)
 
-sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
-site_names <- sites$field_site_id
+sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targetsl/main/NEON_Field_Site_Metadata_20220412.csv") |> 
+  dplyr::filter(terrestrial == 1) |> 
+  dplyr::pull(field_site_id)
 
 start_forecast <- as.POSIXct(Sys.Date(),tz="UTC")
 fx_time <- seq(start_forecast, start_forecast + days(35), by = "30 min")
@@ -182,11 +183,7 @@ ncvar_put(ncout,def_list[[3]] , site_names)
 
 ## Global attributes (metadata)
 curr_time <- with_tz(Sys.time(), "UTC")
-ncatt_put(ncout,0,"forecast_project_id", as.character(forecast_project_id), 
-          prec =  "text")
-ncatt_put(ncout,0,"forecast_model_id",as.character(forecast_project_id), 
-          prec =  "text")
-ncatt_put(ncout,0,"forecast_iteration_id",as.character(curr_time), 
+ncatt_put(ncout,0,"start_time", as.character(fx_time[1]), 
           prec =  "text")
 
 nc_close(ncout)   ## make sure to close the file
@@ -204,6 +201,7 @@ meta_data_filename <- generate_metadata(forecast_file =  ncfname,
                                         forecast_file_name_base = strsplit(ncfname,".",fixed=TRUE)[[1]][1],
                                         start_time = fx_time[1],
                                         stop_time = last(fx_time))
+
 neon4cast::submit(forecast_file = ncfname, 
                   metadata = meta_data_filename, 
                   ask = FALSE)

@@ -214,6 +214,12 @@ site_uncertainty <- bind_rows(nee_site_uncertainty, le_site_uncertainty)
 
 flux_target_30m <- left_join(flux_target_30m, site_uncertainty, by = c("site_id", "variable"))
 
+#flux_target_30m <- flux_target_30m |> 
+#  select(time, site_id, variable, observed)
+
+flux_target_daily <- flux_target_daily |> 
+  select(time, site_id, variable, observed)
+
 write_csv(flux_target_30m, "terrestrial_30min-targets.csv.gz")
 write_csv(flux_target_daily, "terrestrial_daily-targets.csv.gz")
 
