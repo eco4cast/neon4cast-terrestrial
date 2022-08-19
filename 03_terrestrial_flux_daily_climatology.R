@@ -59,7 +59,6 @@ if(curr_month < 10){
   curr_month <- paste0("0", curr_month)
 }
 
-
 curr_year <- year(Sys.Date())
 start_date <- Sys.Date() + days(1)
 
@@ -96,22 +95,20 @@ combined <- forecast %>%
   rename(mean = clim_mean,
          sd = clim_sd) %>% 
   group_by(site_id, variable) %>% 
-  mutate(mean = imputeTS::na_interpolation(x = mean),
-         sd = median(sd, na.rm = TRUE)) %>%
+  mutate(mu = imputeTS::na_interpolation(x = mean),
+         sigma = median(sd, na.rm = TRUE))
+combined <- combined %>%
   pivot_longer(c("mu", "sigma"),names_to = "parameter", values_to = "predicted") |> 
   mutate(family = "normal") |> 
   mutate(start_time = min(combined$time) - lubridate::days(1)) |> 
   select(time, start_time, site_id, variable, family, parameter, predicted)
 
-
-
-
 combined %>% 
   filter(variable == "nee") |> 
   pivot_wider(names_from = parameter, values_from = predicted) %>% 
   ggplot(aes(x = time)) +
-  geom_ribbon(aes(ymin=mean - sd*1.96, ymax=mean + sd*1.96), alpha = 0.1) + 
-  geom_point(aes(y = mean)) +
+  geom_ribbon(aes(ymin=mu - sigma*1.96, ymax=mu + sigma*1.96), alpha = 0.1) + 
+  geom_point(aes(y = mu)) +
   facet_wrap(~site_id)
 
 forecast_file <- paste("terrestrial_daily", min(combined$time), "climatology.csv.gz", sep = "-")

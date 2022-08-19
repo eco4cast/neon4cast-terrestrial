@@ -37,7 +37,7 @@ download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_30min/
 
 terrestrial_targets <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000, show_col_types = FALSE)
 
-sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targetsl/main/NEON_Field_Site_Metadata_20220412.csv") |> 
+site_names <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") |> 
   dplyr::filter(terrestrial == 1) |> 
   dplyr::pull(field_site_id)
 
