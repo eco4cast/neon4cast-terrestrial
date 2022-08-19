@@ -40,7 +40,8 @@ team_name <- "climatology"
 #'NA values at the beginning of the file
 targets <- readr::read_csv("https://data.ecoforecast.org/neon4cast-targets/terrestrial_daily/terrestrial_daily-targets.csv.gz", guess_max = 10000)
 
-sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") |> 
+  dplyr::filter(terrestrial == 1)
 
 site_names <- sites$field_site_id
 
@@ -97,9 +98,9 @@ combined <- forecast %>%
   group_by(site_id, variable) %>% 
   mutate(mean = imputeTS::na_interpolation(x = mean),
          sd = median(sd, na.rm = TRUE)) %>%
-  pivot_longer(c("mean", "sd"),names_to = "parameter", values_to = "predicted") |> 
+  pivot_longer(c("mu", "sigma"),names_to = "parameter", values_to = "predicted") |> 
   mutate(family = "normal") |> 
-  mutate(start_time = min(combined$time) - lubridate::days(1))
+  mutate(start_time = min(combined$time) - lubridate::days(1)) |> 
   select(time, start_time, site_id, variable, family, parameter, predicted)
 
 

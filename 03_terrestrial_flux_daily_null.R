@@ -49,21 +49,26 @@ download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_daily/
 #'NA values at the beginning of the file
 terrestrial_targets <- read_csv("terrestrial_daily-targets.csv.gz", guess_max = 10000)
 
+terrestrial_targets |> 
+  group_by(variable) |> 
+  summarize(mean = quantile(observed, 0.75, na.rm = TRUE))
+
 terrestrial_targets <- terrestrial_targets #%>% 
   #filter(time < as_date("2020-12-01"))
 
-download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
-              "terrestrial_30min-targets.csv.gz")
+#download.file("https://data.ecoforecast.org/neon4cast-targets/terrestrial_30min/terrestrial_30min-targets.csv.gz",
+#              "terrestrial_30min-targets.csv.gz")
 
-terrestrial_targets_30min <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000)
+#terrestrial_targets_30min <- read_csv("terrestrial_30min-targets.csv.gz", guess_max = 10000)
 
-variable_sd <- terrestrial_targets_30min |> 
-  mutate(sd = (sqrt(2) * sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)) |> 
-  group_by(site_id, variable) |> 
-  summarize(sd = mean(sd, na.rm = TRUE), .groups = "drop")
+#variable_sd <- terrestrial_targets_30min |> 
+#  mutate(sd = (sqrt(2) * sd_intercept) * ((12 / 1000000) * (60 * 60 * 24)) / sqrt(48)) |> 
+#  group_by(site_id, variable) |> 
+#  summarize(sd = mean(sd, na.rm = TRUE), .groups = "drop")
 
 #'Focal sites
-sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-terrestrial/master/Terrestrial_NEON_Field_Site_Metadata_20210928.csv")
+sites <- read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") |> 
+  dplyr::filter(terrestrial == 1)
 
 site_names <- sites$field_site_id
 
@@ -100,10 +105,10 @@ for(s in 1:length(site_names)){
   
   message(paste0("NEE: ", site_names[s]))
   
-  site_sd <- variable_sd |> 
-    filter(site_id == site_names[s],
-           variable == "nee") |> 
-    pull(sd)
+  #site_sd <- variable_sd |> 
+  #  filter(site_id == site_names[s],
+  #         variable == "nee") |> 
+  #  pull(sd)
     
   
   # Select site
@@ -137,7 +142,7 @@ for(s in 1:length(site_names)){
   
   #Create a list of the data for use in JAGS.  Include vector lengths (nobs, n)
   data <- list(y = y_wgaps,
-               tau_obs = 1/(site_sd ^ 2),
+               tau_obs = 1/(0.05 ^ 2),
                n = length(y_wgaps),
                x_ic = 0.0)
   
@@ -228,10 +233,10 @@ for(s in 1:length(site_names)){
     filter(site_id == site_names[s], 
            time >= lubridate::as_date("2020-01-01"))
     
-    site_sd <- variable_sd |> 
-      filter(site_id == site_names[s],
-             variable == "le") |> 
-      pull(sd)
+    #site_sd <- variable_sd |> 
+    #  filter(site_id == site_names[s],
+    #         variable == "le") |> 
+    #  pull(sd)
     
   
   max_time <- max(site_data_var$time) + days(1)
@@ -253,7 +258,7 @@ for(s in 1:length(site_names)){
   init_x <- approx(x = time[!is.na(y_wgaps)], y = y_nogaps, xout = time, rule = 2)$y
   
   data <- list(y = y_wgaps,
-               tau_obs = 1/(site_sd ^ 2),
+               tau_obs = 1/(0.1 ^ 2),
                n = length(y_wgaps),
                x_ic = 0.0)
   
